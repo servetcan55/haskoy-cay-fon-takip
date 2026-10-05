@@ -92,7 +92,7 @@ function monthKey(){ let s = document.getElementById('month'); return s ? s.valu
 function monthData(){ let k = monthKey(); if(!k) return {}; if(!db.months[k]) db.months[k] = {}; return db.months[k]; }
 function initMonths(){
   let s = document.getElementById('month');
-  if(!s) return;
+  if(!s || s.options.length > 0) return;
   let now = new Date();
   let y = now.getFullYear(), m = now.getMonth()+1;
   let arr = [];
@@ -325,7 +325,7 @@ function closeModal(){
 function saveTeacher(){
   let n = document.getElementById('teacherName').value.trim();
   if(!n) return;
-  let teaExempt = document.getElementById('teaExempt').checked, fundExempt = document.getElementById('fundExempt').checked;
+  let teaExempt = document.getElementById('teaExempt'].checked, fundExempt = document.getElementById('fundExempt').checked;
   if(editingId){
     let t = db.teachers.find(x => x.id === editingId);
     if(t){ t.name = n; t.teaExempt = teaExempt; t.fundExempt = fundExempt; }
@@ -472,9 +472,6 @@ function render(){
         <div class="card"><h3>💰 Genel fon bakiyesi</h3><div class="amount">${money(ac.fund - ae.fund)}</div></div>
         <div class="card"><h3>💵 Mevcut para</h3><div class="amount">${money(ac.total - ae.total)}</div><div class="status" style="margin-top:6px">Toplam tahsilat − toplam harcama</div></div>
       </div>
-      <div class="section-title"><h2>Öğretmenler</h2><button class="btn primary" onclick="addTeacher()">+ Ekle</button></div>
-      <div class="field"><input id="teacherSearch" oninput="render()" placeholder="🔎 Öğretmen ara..."></div>
-      <div id="teacherListContainer">${teacherList(8)}</div>
       <div class="section-title"><h2>🧾 ${monthLabel} Harcamaları</h2></div>
       ${expenseList.length ? expenseList.map(x => `
         <div class="teacher">
