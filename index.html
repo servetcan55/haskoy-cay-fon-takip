@@ -320,6 +320,16 @@ function render(){
       <div class="field"><input id="teacherSearch" oninput="render()" placeholder="🔎 Öğretmen ara..."></div>
       ${teacherList()}
     `;
+  } else if(view === 'settings'){
+    document.getElementById('settingsView').innerHTML = `
+      <div class="section-title"><h2>Ayarlar</h2></div>
+      <div class="settings">
+        <div class="setting"><div class="row"><span>☕ Çay parası</span><input type="number" id="teaAmount" value="${db.settings.tea}"></div></div>
+        <div class="setting"><div class="row"><span>💰 Fon parası</span><input type="number" id="fundAmount" value="${db.settings.fund}"></div></div>
+        <button class="btn primary" onclick="saveSettings()">Ayarları Kaydet</button>
+        <div class="setting"><b>🗑️ Verileri Sıfırla</b><div class="status" style="margin:6px 0 10px">Tüm öğretmen ve ödeme kayıtlarını siler.</div><button class="btn secondary" onclick="resetData()">Tüm Verileri Sıfırla</button></div>
+      </div>
+    `;
   }
 }
 
