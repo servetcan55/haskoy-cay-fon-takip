@@ -10,7 +10,7 @@
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Hask%C3%B6y%20Ortaokulu%20-%20%C3%87ay%20%26%20Fon%20Takip%22%2C%22short_name%22%3A%22%C3%87ay%20%26%20Fon%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f5f6fb%22%2C%22theme_color%22%3A%22%23292e88%22%7D">
 <title>Çay & Fon Takip</title>
 
-<!-- Firebase SDK'ları (Auth dahil) -->
+<!-- Firebase SDK'ları -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -65,7 +65,6 @@
     });
   }
 
-  // Oturum durumunu kontrol et
   auth.onAuthStateChanged((user) => {
     if (user) {
       document.getElementById('loginScreen').classList.add('hidden');
@@ -129,7 +128,7 @@
       </div>
       <div class="month">
         <select id="month" onchange="render()"></select>
-        <button class="icon" onclick="addTeacher()">＋</button>
+        <button class="icon" onclick="addNewMonthModal()" title="Yeni Ay Ekle">＋</button>
       </div>
     </header>
     <section class="content">
@@ -151,20 +150,68 @@
 <script>
 function monthKey(){ let s = document.getElementById('month'); return s ? s.value : ''; }
 function monthData(){ let k = monthKey(); if(!k) return {}; if(!db.months[k]) db.months[k] = {}; return db.months[k]; }
+
 function initMonths(){
   let s = document.getElementById('month');
-  if(!s || s.options.length > 0) return;
+  if(!s) return;
+  let currentVal = s.value;
+  
+  // Mevcut aylar listesi: Kayıtlı aylar, harcama ayları ve son 10 yıl ile gelecek 2 yılı kapsayan geniş bir aralık
   let now = new Date();
-  let y = now.getFullYear(), m = now.getMonth()+1;
+  let currentYear = now.getFullYear();
   let arr = [];
-  for(let i=-6; i<7; i++){
-    let d = new Date(y, m-1+i, 1);
-    arr.push(d.toISOString().slice(0,7));
+  
+  // 2005'ten 2035'e kadar tüm ayları otomatik oluştur
+  for(let y = 2005; y <= 2035; y++){
+    for(let m = 1; m <= 12; m++){
+      arr.push(`${y}-${String(m).padStart(2,'0')}`);
+    }
   }
+  
+  // Sistemde veri bulunan ekstra aylar varsa onları da ekle
+  let activeMonths = Object.keys(db.months || {}).concat((db.expenses||[]).map(e=>e.month));
+  activeMonths.forEach(m => { if(m && !arr.includes(m)) arr.push(m); });
+  arr.sort().reverse(); // En yeni aydan en eskiye doğru sırala
+
   s.innerHTML = arr.map(k => { let [a,b]=k.split('-'); return `<option value="${k}">${b}/${a}</option>`; }).join('');
-  let currentVal = `${y}-${String(m).padStart(2,'0')}`;
-  if(arr.includes(currentVal)) s.value = currentVal;
+  
+  if(currentVal && arr.includes(currentVal)){
+    s.value = currentVal;
+  } else {
+    let defVal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    s.value = arr.includes(defVal) ? defVal : arr[0];
+  }
 }
+
+function addNewMonthModal(){
+  document.getElementById('modal').innerHTML = `
+    <div class="sheet">
+      <h2>Özel Ay Seç / Ekle</h2>
+      <div class="field"><label>İstediğiniz Yıl ve Ayı Seçin</label><input type="month" id="customMonthInput" value="${new Date().toISOString().slice(0,7)}" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px"></div>
+      <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="selectCustomMonth()">Seçime Git</button></div>
+    </div>
+  `;
+  document.getElementById('modal').classList.add('open');
+}
+
+function selectCustomMonth(){
+  let val = document.getElementById('customMonthInput').value;
+  if(!val) return;
+  let s = document.getElementById('month');
+  // Eğer listede yoksa option ekle
+  let exists = Array.from(s.options).some(o => o.value === val);
+  if(!exists){
+    let [a,b] = val.split('-');
+    let opt = document.createElement('option');
+    opt.value = val;
+    opt.text = `${b}/${a}`;
+    s.insertBefore(opt, s.firstChild);
+  }
+  s.value = val;
+  closeModal();
+  render();
+}
+
 function payment(id, type){
   let t = db.teachers.find(x => x.id === id);
   if(!t || t[type+'Exempt']) return;
@@ -331,7 +378,7 @@ function settingsHTML(){
         <div class="actions"><button class="btn secondary" onclick="backupData()">Yedeği Dışa Aktar</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Yedeği Yükle</button></div>
         <input id="backupFile" type="file" accept=".json,application/json" class="hidden" onchange="restoreData(event)">
       </div>
-      <div class="setting"><b>🗑️️ Verileri Sıfırla</b><div class="status" style="margin:6px 0 10px">Tüm öğretmen ve ödeme kayıtlarını siler.</div><button class="btn secondary" onclick="resetData()">Tüm Verileri Sıfırla</button></div>
+      <div class="setting"><b>🗑️ Verileri Sıfırla</b><div class="status" style="margin:6px 0 10px">Tüm öğretmen ve ödeme kayıtlarını siler.</div><button class="btn secondary" onclick="resetData()">Tüm Verileri Sıfırla</button></div>
       <div class="setting"><b>📥 Öğretmenleri Toplu Yükle</b><div class="status" style="margin:6px 0 10px">Excel (.xlsx/.xls) veya CSV dosyasındaki ilk sütundaki isimleri topluca ekler.</div><button class="btn primary" onclick="document.getElementById('teacherImportFile').click()">📥 Excel / CSV Seç</button></div>
       <input id="teacherImportFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden" onchange="importTeachersFile(event)">
       <div class="setting"><b>🧾 Harcama Yönetimi</b><div class="status" style="margin:6px 0 10px">Çay veya fon parasından yapılan harcamaları buradan ekleyebilirsiniz.</div><button class="btn primary" onclick="expenseModal()">+ Harcama Ekle</button></div>
