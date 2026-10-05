@@ -1,6 +1,6 @@
 <!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#292e88"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Çay & Fon"><link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Hask%C3%B6y%20Ortaokulu%20-%20%C3%87ay%20%26%20Fon%20Takip%22%2C%22short_name%22%3A%22%C3%87ay%20%26%20Fon%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f5f6fb%22%2C%22theme_color%22%3A%22%23292e88%22%7D"><title>Çay & Fon Takip</title>
 
-<!-- Firebase Compat SDK'ları (Beyaz ekran sorununu çözen kararlı yapı) -->
+<!-- Firebase Compat SDK'ları -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
@@ -19,7 +19,7 @@
   const docRef = dbFirestore.collection("cayFonData").doc("mainDoc");
 
   let db = {teachers:[],months:{},settings:{tea:150,fund:100},expenses:[]};
-  let view='dash',editingId=null,historyTeacherId=null,isReady=false;
+  let view='dash',editingId=null,historyTeacherId=null;
 
   function save() {
     docRef.set(db).catch(err => console.error("Kayıt hatası:", err));
@@ -37,17 +37,16 @@
       save();
     }
     db.teachers.forEach(t=>{t.teaExempt=!!t.teaExempt;t.fundExempt=!!t.fundExempt});
-    if(!isReady) {
-      isReady = true;
-      initMonths();
-    }
-    render();
+    if(typeof render === 'function') render();
   }, (error) => {
     console.error("Firebase bağlantı hatası:", error);
   });
 </script>
 <script>
 window.addEventListener('load',()=>{
+  initMonths();
+  render();
+
   const oldBulkSettings=settingsHTML;
   window.settingsHTML=function(){return oldBulkSettings()+'<div class="setting"><b>📥 Öğretmenleri Toplu Yükle</b><div class="status" style="margin:6px 0 10px">Excel (.xlsx/.xls) veya CSV dosyasındaki ilk sütundaki isimleri topluca ekler.</div><button class="btn primary" onclick="document.getElementById(\'teacherImportFile\').click()">📥 Excel / CSV Seç</button><input id="teacherImportFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden" onchange="importTeachersFile(event)"></div>'};
   window.importTeachersFile=async function(event){let file=event.target.files[0];if(!file)return;try{let ext=file.name.toLowerCase().split('.').pop(),names=[];if(ext==='csv'){let text=(await file.text()).replace(/^\ufeff/,'');let lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),delimiter=lines[0]?.includes(';')?';':',';names=lines.map((line,i)=>{let first=line.split(delimiter)[0].trim().replace(/^"|"$/g,'');return i===0&&/^(ad\s*soyad|ad|isim|öğretmen|öğretmen\s*adı|name)$/i.test(first)?'':first}).filter(Boolean)}else{if(!window.XLSX){await new Promise((resolve,reject)=>{let s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=resolve;s.onerror=reject;document.head.appendChild(s)})}let data=await file.arrayBuffer(),wb=XLSX.read(data,{type:'array'}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});names=rows.map((r,i)=>{let first=String(r?.[0]??'').trim();return i===0&&/^(ad\s*soyad|ad|isim|öğretmen|öğretmen\s*adı|name)$/i.test(first)?'':first}).filter(Boolean)}let existing=new Set(db.teachers.map(t=>t.name.trim().toLocaleLowerCase('tr-TR'))),added=0;names.forEach(name=>{let key=name.toLocaleLowerCase('tr-TR');if(!existing.has(key)){db.teachers.push({id:crypto.randomUUID(),name,teaExempt:false,fundExempt:false});existing.add(key);added++}});save();render();alert(added+' öğretmen eklendi. '+(names.length-added)+' kayıt zaten vardı veya tekrarlandı.')}catch(e){alert('Dosya okunamadı. CSV için ilk sütuna öğretmen adlarını yazın; Excel için .xlsx/.xls dosyası seçin.')}finally{event.target.value=''}};
@@ -85,4 +84,4 @@ window.addEventListener('load',()=>{
   render();
 });
 </script><style>
-:root{--navy:#292e88;--orange:#ec6701;--bg:#f5f6fb;--card:#fff;--text:#171a2b;--muted:#73788f;--line:#e6e8f0;--green:#16864a;--red:#c93a3a}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;background:var(--bg)}body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--text)}button,input,select{font:inherit}.app{width:100%;max-width:760px;margin:auto;padding-bottom:82px}.top{background:linear-gradient(135deg,var(--navy),#4147a7);color:#fff;padding:20px 18px 16px;border-radius:0 0 22px 22px;position:sticky;top:0;z-index:5}.brand{display:flex;align-items:center;justify-content:space-between}.brand h1{font-size:20px;margin:0}.brand small{opacity:.72;font-size:10px}.month{margin-top:13px;display:flex;gap:8px}.month select{flex:1;background:#fff;color:var(--text);border:0;border-radius:11px;padding:11px 12px;font-weight:700}.icon{border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:11px;width:42px}.content{padding:16px;overflow:visible}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}.stat .label{font-size:11px;color:var(--muted)}.stat b{font-size:19px;display:block;margin-top:4px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}.card h3{font-size:13px;margin:0 0 8px}.amount{font-size:18px;font-weight:800}.amount span{font-size:11px;color:var(--muted);font-weight:500}.section-title{display:flex;justify-content:space-between;align-items:center;margin:17px 0 9px}.section-title h2{font-size:16px;margin:
+:root{--navy:#292e88;--orange:#ec6701;--bg:#f5f6fb;--card:#fff;--text:#171a2b;--muted:#73788f;--line:#e6e8f0;--green:#16864a;--red:#c93a3a}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;background:var(--bg)}body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--text)}button,input,select{font:inherit}.app{width:100%;max-width:760px;margin:auto;padding-bottom:82px}.top{background:linear-gradient(135deg,var(--navy),#4147a7);color:#fff;padding:20px 18px 16px;border-radius:0 0 22px 22px;position:sticky;top:0;z-index:5}.brand{display:flex;align-items:center;justify-content:space-between}.brand h1{font-size:20px;margin:0}.brand small{opacity:.72;font-size:10px}.month{margin-top:13px;display:flex;gap:8px}.month select{flex:1;background:#fff;color:var(--text);border:0;border-radius:11px;padding:11px 12px;font-weight:700}.icon{border:0;
