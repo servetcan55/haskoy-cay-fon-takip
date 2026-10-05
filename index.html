@@ -224,11 +224,10 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-function teacherList(limit){
+function teacherList(){
   if(!db.teachers.length) return `<div class="empty">Henüz öğretmen eklenmedi.<br><button class="btn primary" style="margin-top:10px" onclick="addTeacher()">İlk öğretmeni ekle</button></div>`;
   let md = monthData(), q = (document.getElementById('teacherSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   let list = db.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,'tr',{sensitivity:'base'})).filter(t=>!q || t.name.toLocaleLowerCase('tr-TR').includes(q));
-  if(limit) list = list.slice(0, limit);
   return list.map(t=>{
     let p = md[t.id] || {}, teaLabel = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundLabel = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
     let badges = [t.teaExempt?'☕ Çay muaf':'', t.fundExempt?'💰 Fon muaf':''].filter(Boolean).join(' • ');
@@ -325,7 +324,7 @@ function closeModal(){
 function saveTeacher(){
   let n = document.getElementById('teacherName').value.trim();
   if(!n) return;
-  let teaExempt = document.getElementById('teaExempt'].checked, fundExempt = document.getElementById('fundExempt').checked;
+  let teaExempt = document.getElementById('teaExempt').checked, fundExempt = document.getElementById('fundExempt').checked;
   if(editingId){
     let t = db.teachers.find(x => x.id === editingId);
     if(t){ t.name = n; t.teaExempt = teaExempt; t.fundExempt = fundExempt; }
