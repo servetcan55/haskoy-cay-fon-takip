@@ -85,17 +85,7 @@
     <button id="navSettings" onclick="showView('settings')">⚙️<br>Ayarlar</button>
   </nav>
 </footer>
-<div id="modal" class="modal">
-  <div class="sheet">
-    <h2 id="modalTitle">Öğretmen Ekle</h2>
-    <div class="field"><label>Ad Soyad</label><input id="teacherName" placeholder="Örn. Ahmet Yılmaz"></div>
-    <div class="checks" style="margin:10px 0">
-      <label><input type="checkbox" id="teaExempt"> ☕ Çay parasından muaf</label><br>
-      <label><input type="checkbox" id="fundExempt"> 💰 Fon parasından muaf</label>
-    </div>
-    <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveTeacher()">Kaydet</button></div>
-  </div>
-</div>
+<div id="modal" class="modal"></div>
 
 <script>
 function monthKey(){ let s = document.getElementById('month'); return s ? s.value : ''; }
@@ -111,7 +101,8 @@ function initMonths(){
     arr.push(d.toISOString().slice(0,7));
   }
   s.innerHTML = arr.map(k => { let [a,b]=k.split('-'); return `<option value="${k}">${b}/${a}</option>`; }).join('');
-  s.value = `${y}-${String(m).padStart(2,'0')}`;
+  let currentVal = `${y}-${String(m).padStart(2,'0')}`;
+  if(arr.includes(currentVal)) s.value = currentVal;
 }
 function payment(id, type){
   let t = db.teachers.find(x => x.id === id);
@@ -128,7 +119,7 @@ function stats(){
   let fund = t.filter(x => !x.fundExempt && md[x.id]?.fund).length;
   let teaDue = t.filter(x => !x.teaExempt).length;
   let fundDue = t.filter(x => !x.fundExempt).length;
-  return {tea, fund, teaDue, fundDue, totalTea: tea*db.settings.tea, totalFund: fund*db.settings.fund, total: tea*db.settings.tea + fund*db.settings.fund};
+  return {tea, fund, teaDue, fundDue, totalTea: tea*db.settings.tea, totalFund: fund*db.settings.fund, total: (tea*db.settings.tea) + (fund*db.settings.fund)};
 }
 function initials(n){ return n.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase(); }
 
@@ -180,7 +171,7 @@ function teacherList(limit){
   return list.map(t=>{
     let p = md[t.id] || {}, teaLabel = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundLabel = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
     let badges = [t.teaExempt?'☕ Çay muaf':'', t.fundExempt?'💰 Fon muaf':''].filter(Boolean).join(' • ');
-    let status = t.teaExempt && t.fundExempt ? 'Tam muaf' : (!t.teaExempt && p.tea) && (!t.fundExempt && p.fund) ? 'Tamamlandı' : (!t.teaExempt && p.tea) || (!t.fundExempt && p.fund) ? 'Eksik ödeme' : 'Ödeme bekliyor';
+    let status = t.teaExempt && t.fundExempt ? 'Tam muaf' : (!t.teaExempt && p.tea) && (!t.fundExempt && p.fund) ? 'Tamamlandı' : (!t.teaExempt && p.tea) || (!t.fundExempt && p.fund) ? 'Eksik ödeme' : 'Aktif';
     return `
       <div class="teacher" onclick="teacherHistory('${t.id}')">
         <div class="teacher-head">
@@ -202,178 +193,4 @@ function settingsHTML(){
   return `
     <div class="section-title"><h2>Ayarlar</h2></div>
     <div class="settings">
-      <div class="setting"><div class="row"><span>☕ Çay parası</span><input type="number" id="teaAmount" value="${db.settings.tea}"></div></div>
-      <div class="setting"><div class="row"><span>💰 Fon parası</span><input type="number" id="fundAmount" value="${db.settings.fund}"></div></div>
-      <button class="btn primary" onclick="saveSettings()">Ayarları Kaydet</button>
-      <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu rapor indir</button>
-      <div class="setting"><b>💾 Veri Yedekleme</b><div class="status" style="margin:6px 0 10px">Yedekleme dosyası oluşturabilirsiniz.</div>
-        <div class="actions"><button class="btn secondary" onclick="backupData()">Yedeği Dışa Aktar</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Yedeği Yükle</button></div>
-        <input id="backupFile" type="file" accept=".json,application/json" class="hidden" onchange="restoreData(event)">
-      </div>
-      <div class="setting"><b>🗑️️ Verileri Sıfırla</b><div class="status" style="margin:6px 0 10px">Tüm öğretmen ve ödeme kayıtlarını siler.</div><button class="btn secondary" onclick="resetData()">Tüm Verileri Sıfırla</button></div>
-    </div>
-  `;
-}
-
-function showView(v){
-  view = v;
-  document.getElementById('dashboard').classList.toggle('hidden', v !== 'dash');
-  document.getElementById('teachersView').classList.toggle('hidden', v !== 'teachers');
-  document.getElementById('settingsView').classList.toggle('hidden', v !== 'settings');
-  ['Dash','Teachers','Settings'].forEach(x => document.getElementById('nav'+x)?.classList.toggle('active', v.toLowerCase() === x.toLowerCase()));
-  render();
-}
-
-function addTeacher(){
-  editingId = null;
-  document.getElementById('modalTitle').textContent = 'Öğretmen Ekle';
-  document.getElementById('teacherName').value = '';
-  document.getElementById('teaExempt').checked = false;
-  document.getElementById('fundExempt').checked = false;
-  document.getElementById('modal').innerHTML = `
-    <div class="sheet">
-      <h2 id="modalTitle">Öğretmen Ekle</h2>
-      <div class="field"><label>Ad Soyad</label><input id="teacherName" placeholder="Örn. Ahmet Yılmaz"></div>
-      <div class="checks" style="margin:10px 0">
-        <label><input type="checkbox" id="teaExempt"> ☕ Çay parasından muaf</label><br>
-        <label><input type="checkbox" id="fundExempt"> 💰 Fon parasından muaf</label>
-      </div>
-      <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveTeacher()">Kaydet</button></div>
-    </div>
-  `;
-  document.getElementById('modal').classList.add('open');
-  setTimeout(()=>document.getElementById('teacherName').focus(), 100);
-}
-
-function editTeacher(id){
-  let t = db.teachers.find(x => x.id === id);
-  if(!t) return;
-  editingId = id;
-  document.getElementById('modal').innerHTML = `
-    <div class="sheet">
-      <h2>Öğretmeni Düzenle</h2>
-      <div class="field"><label>Ad Soyad</label><input id="teacherName" value="${t.name}"></div>
-      <div class="checks" style="margin:10px 0">
-        <label><input type="checkbox" id="teaExempt" ${t.teaExempt?'checked':''}> ☕ Çay parasından muaf</label><br>
-        <label><input type="checkbox" id="fundExempt" ${t.fundExempt?'checked':''}> 💰 Fon parasından muaf</label>
-      </div>
-      <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveTeacher()">Kaydet</button></div>
-    </div>
-  `;
-  document.getElementById('modal').classList.add('open');
-  setTimeout(()=>document.getElementById('teacherName').focus(), 100);
-}
-
-function closeModal(){
-  document.getElementById('modal').classList.remove('open');
-  editingId = null;
-}
-
-function saveTeacher(){
-  let n = document.getElementById('teacherName').value.trim();
-  if(!n) return;
-  let teaExempt = document.getElementById('teaExempt').checked, fundExempt = document.getElementById('fundExempt').checked;
-  if(editingId){
-    let t = db.teachers.find(x => x.id === editingId);
-    if(t){ t.name = n; t.teaExempt = teaExempt; t.fundExempt = fundExempt; }
-  } else {
-    db.teachers.push({id: crypto.randomUUID(), name: n, teaExempt, fundExempt});
-  }
-  save(); closeModal(); render();
-}
-
-function removeTeacher(id){
-  if(confirm('Bu öğretmen listeden silinsin mi?')){
-    db.teachers = db.teachers.filter(x => x.id !== id);
-    save(); render();
-  }
-}
-
-function openSettings(){ showView('settings'); }
-function saveSettings(){
-  let tea = Number(document.getElementById('teaAmount').value) || 0;
-  let fund = Number(document.getElementById('fundAmount').value) || 0;
-  db.settings = {tea, fund};
-  save(); render(); alert('Ayarlar kaydedildi.');
-}
-
-function backupData(){
-  let payload = {app: 'Çay & Fon Takip', version: 1, exportedAt: new Date().toISOString(), data: db};
-  let blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json;charset=utf-8'}), a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `cay-fon-yedek-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-}
-
-function restoreData(event){
-  let file = event.target.files[0];
-  if(!file) return;
-  let reader = new FileReader();
-  reader.onload = () => {
-    try {
-      let payload = JSON.parse(reader.result), data = payload.data || payload;
-      if(!data || !Array.isArray(data.teachers)) throw new Error('Geçersiz yedek');
-      if(!confirm('Mevcut verilerin üzerine bu yedek yüklensin mi?')) return;
-      db = data; save(); initMonths(); render(); alert('Yedek başarıyla yüklendi.');
-    } catch(e) { alert('Yedek dosyası okunamadı.'); }
-    finally { event.target.value = ''; }
-  };
-  reader.readAsText(file);
-}
-
-function resetData(){
-  if(confirm('TÜM öğretmen ve ödeme verileri silinsin mi?')){
-    db = {teachers:[], months:{}, settings:{tea:150, fund:100}, expenses:[]};
-    save(); render();
-  }
-}
-
-function exportCSV(){
-  let md = monthData(), k = monthKey(), rows = [['Öğretmen','Çay Durumu','Çay Tutarı','Çay Tarihi','Fon Durumu','Fon Tutarı','Fon Tarihi','Toplam']];
-  db.teachers.forEach(t=>{
-    let p = md[t.id]||{}, teaStatus = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundStatus = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
-    let teaAmount = t.teaExempt?0:p.tea?db.settings.tea:0, fundAmount = t.fundExempt?0:p.fund?db.settings.fund:0;
-    rows.push([t.name, teaStatus, teaAmount, t.teaExempt?'':p.teaDate||'', fundStatus, fundAmount, t.fundExempt?'':p.fundDate||'', teaAmount+fundAmount]);
-  });
-  let csv = '\ufeff' + rows.map(r => r.map(v => '"' + String(v).replaceAll('"','""') + '"').join(';')).join('\r\n');
-  let blob = new Blob([csv], {type:'text/csv;charset=utf-8'}), a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `cay-fon-${k}.csv`; a.click();
-}
-
-function render(){
-  initMonths();
-  let st = stats();
-  let money = n => Number(n||0).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2})+' ₺';
-
-  document.getElementById('dashboard').innerHTML = `
-    <div class="stats">
-      <div class="stat"><div class="label">Toplam öğretmen</div><b>${db.teachers.length}</b></div>
-      <div class="stat"><div class="label">Toplam tahsilat</div><b>${money(st.total)}</b></div>
-      <div class="stat"><div class="label">☕ Çay</div><b>${st.tea}/${st.teaDue}</b></div>
-      <div class="stat"><div class="label">💰 Fon</div><b>${st.fund}/${st.fundDue}</b></div>
-    </div>
-    <div class="cards">
-      <div class="card"><h3>☕ Çay tahsilatı</h3><div class="amount">${money(st.totalTea)} <span>• ${db.settings.tea} ₺ / kişi</span></div></div>
-      <div class="card"><h3>💰 Fon tahsilatı</h3><div class="amount">${money(st.totalFund)} <span>• ${db.settings.fund} ₺ / kişi</span></div></div>
-    </div>
-    <div class="section-title"><h2>Ödeme durumu</h2><button class="btn secondary" onclick="exportCSV()">📊 Excel</button></div>
-    <div class="field"><input id="teacherSearch" oninput="render()" placeholder="🔎 Öğretmen ara..."></div>
-    <div id="teacherListContainer">${teacherList(8)}</div>
-  `;
-
-  document.getElementById('teachersView').innerHTML = `
-    <div class="section-title"><h2>Öğretmenler</h2><button class="btn primary" onclick="addTeacher()">+ Ekle</button></div>
-    <div class="field"><input id="teacherSearch" oninput="render()" placeholder="🔎 Öğretmen ara..."></div>
-    ${teacherList()}
-  `;
-
-  document.getElementById('settingsView').innerHTML = settingsHTML();
-}
-
-window.addEventListener('load', () => {
-  initMonths();
-  render();
-});
-</script>
-</body>
-</html>
+      <div class="setting"><div class="
