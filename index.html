@@ -36,6 +36,16 @@
     docRef.set(db).catch(err => console.error("Kayıt hatası:", err));
   }
 
+  // Manuel Bulut Senkronizasyon Butonu için fonksiyon
+  function syncToCloud() {
+    docRef.set(db).then(() => {
+      alert("Tüm verileriniz başarıyla buluta (Firebase'e) kaydedildi! Artık diğer cihazlarda da görünecektir.");
+    }).catch(err => {
+      console.error("Bulut kayıt hatası:", err);
+      alert("Buluta kaydederken bir hata oluştu.");
+    });
+  }
+
   docRef.onSnapshot((docSnap) => {
     if (docSnap.exists) {
       let data = docSnap.data();
@@ -259,6 +269,14 @@ function settingsHTML(){
       <div class="setting"><div class="row"><span>💰 Fon parası</span><input type="number" id="fundAmount" value="${db.settings.fund}"></div></div>
       <button class="btn primary" onclick="saveSettings()">Ayarları Kaydet</button>
       <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu rapor indir</button>
+      
+      <!-- Yeni Eklenen Bulut Senkronizasyon Butonu -->
+      <div class="setting">
+        <b>☁️ Bulut Senkronizasyonu</b>
+        <div class="status" style="margin:6px 0 10px">Bu bilgisayardaki/tarayıcıdaki tüm verileri buluta (diğer cihazlara) anında yükler.</div>
+        <button class="btn primary" onclick="syncToCloud()">☁️ Verileri Buluta Kaydet / Eşitle</button>
+      </div>
+
       <div class="setting"><b>💾 Veri Yedekleme</b><div class="status" style="margin:6px 0 10px">Telefon ve bilgisayar arasında veri taşımak için kullanabilirsiniz.</div>
         <div class="actions"><button class="btn secondary" onclick="backupData()">Yedeği Dışa Aktar</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Yedeği Yükle</button></div>
         <input id="backupFile" type="file" accept=".json,application/json" class="hidden" onchange="restoreData(event)">
