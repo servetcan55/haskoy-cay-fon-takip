@@ -155,29 +155,22 @@ function initMonths(){
   let s = document.getElementById('month');
   if(!s) return;
   let currentVal = s.value;
-  
-  // Mevcut aylar listesi: Kayıtlı aylar, harcama ayları ve son 10 yıl ile gelecek 2 yılı kapsayan geniş bir aralık
-  let now = new Date();
-  let currentYear = now.getFullYear();
   let arr = [];
-  
-  // 2005'ten 2035'e kadar tüm ayları otomatik oluştur
   for(let y = 2005; y <= 2035; y++){
     for(let m = 1; m <= 12; m++){
       arr.push(`${y}-${String(m).padStart(2,'0')}`);
     }
   }
-  
-  // Sistemde veri bulunan ekstra aylar varsa onları da ekle
   let activeMonths = Object.keys(db.months || {}).concat((db.expenses||[]).map(e=>e.month));
   activeMonths.forEach(m => { if(m && !arr.includes(m)) arr.push(m); });
-  arr.sort().reverse(); // En yeni aydan en eskiye doğru sırala
+  arr.sort().reverse();
 
   s.innerHTML = arr.map(k => { let [a,b]=k.split('-'); return `<option value="${k}">${b}/${a}</option>`; }).join('');
   
   if(currentVal && arr.includes(currentVal)){
     s.value = currentVal;
   } else {
+    let now = new Date();
     let defVal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     s.value = arr.includes(defVal) ? defVal : arr[0];
   }
@@ -198,7 +191,6 @@ function selectCustomMonth(){
   let val = document.getElementById('customMonthInput').value;
   if(!val) return;
   let s = document.getElementById('month');
-  // Eğer listede yoksa option ekle
   let exists = Array.from(s.options).some(o => o.value === val);
   if(!exists){
     let [a,b] = val.split('-');
@@ -259,7 +251,6 @@ function allExpense(){
 }
 
 function expenseModal(){
-  let k = monthKey();
   document.getElementById('modal').innerHTML = `
     <div class="sheet">
       <h2>Harcama Ekle</h2>
@@ -332,11 +323,25 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-function teacherList(){
-  if(!db.teachers.length) return `<div class="empty">Henüz öğretmen eklenmedi.<br><button class="btn primary" style="margin-top:10px" onclick="addTeacher()">İlk öğretmeni ekle</button></div>`;
-  let md = monthData(), q = (document.getElementById('teacherSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
+function filterTeachers(){
+  let q = (document.getElementById('teacherSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
+  let container = document.getElementById('teacherListContainer');
+  if(!container) return;
+  
+  if(!db.teachers.length){
+    container.innerHTML = `<div class="empty">Henüz öğretmen eklenmedi.<br><button class="btn primary" style="margin-top:10px" onclick="addTeacher()">İlk öğretmeni ekle</button></div>`;
+    return;
+  }
+  
+  let md = monthData();
   let list = db.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,'tr',{sensitivity:'base'})).filter(t=>!q || t.name.toLocaleLowerCase('tr-TR').includes(q));
-  return list.map(t=>{
+  
+  if(!list.length){
+    container.innerHTML = `<div class="empty">Aranan kritere uygun öğretmen bulunamadı.</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(t=>{
     let p = md[t.id] || {}, teaLabel = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundLabel = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
     let badges = [t.teaExempt?'☕ Çay muaf':'', t.fundExempt?'💰 Fon muaf':''].filter(Boolean).join(' • ');
     let history = Object.keys(db.months).sort().reverse().filter(k=>{let hp=db.months[k]?.[t.id]||{};return hp.tea||hp.fund}).slice(0,1).map(k=>{let hp=db.months[k][t.id]||{};return k.split('-')[1]+'/'+k.split('-')[0]+': '+(hp.tea?'☕ Ödendi':'☕ Ödenmedi')+' • '+(hp.fund?'💰 Ödendi':'💰 Ödenmedi')}).join('');
@@ -605,11 +610,15 @@ function render(){
       `).join('') : '<div class="empty">Bu ay henüz harcama girilmedi.</div>'}
     `;
   } else if(view === 'teachers'){
-    document.getElementById('teachersView').innerHTML = `
-      <div class="section-title"><h2>Öğretmenler</h2><button class="btn primary" onclick="addTeacher()">+ Ekle</button></div>
-      <div class="field"><input id="teacherSearch" oninput="render()" placeholder="🔎 Öğretmen ara..."></div>
-      ${teacherList()}
-    `;
+    let viewEl = document.getElementById('teachersView');
+    if(!viewEl.innerHTML.includes('teacherSearch')){
+      viewEl.innerHTML = `
+        <div class="section-title"><h2>Öğretmenler</h2><button class="btn primary" onclick="addTeacher()">+ Ekle</button></div>
+        <div class="field"><input id="teacherSearch" oninput="filterTeachers()" placeholder="🔎 Öğretmen ara..."></div>
+        <div id="teacherListContainer"></div>
+      `;
+    }
+    filterTeachers();
   } else if(view === 'settings'){
     document.getElementById('settingsView').innerHTML = settingsHTML();
   }
