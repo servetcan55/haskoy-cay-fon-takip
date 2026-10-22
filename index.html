@@ -8,18 +8,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Çay & Fon">
 
-<!-- Uygulama İkonları (Favicon ve Mobil Simge Desteği) -->
+<!-- Uygulama İkonları -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23292e88%22/><text x=%2250%%22 y=%2255%%22 font-size=%2255%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>☕</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23292e88%22/><text x=%2250%%22 y=%2255%%22 font-size=%2255%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>☕</text></svg>">
 
-<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Hask%C3%B6y%20Ortaokulu%20-%20%C3%87ay%20%26%20Fon%20Takip%22%2C%22short_name%22%3A%22%C3%87ay%20%26%20Fon%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f5f6fb%22%2C%22theme_color%22%3A%22%23292e88%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml,%253Csvg%20xmlns%3D%2522http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2522%20viewBox%3D%25220%200%20100%20100%2522%253E%253Crect%20width%3D%2522100%2522%20height%3D%2522100%2522%20rx%3D%252225%2522%20fill%3D%2522%2523292e88%2522%2F%253E%253Ctext%20x%3D%252250%2525%2522%20y%3D%252255%2525%2522%20font-size%3D%252255%2522%20dominant-baseline%253D%2522middle%2522%20text-anchor%3D%2522middle%2522%253E%25E2%2598%2595%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2svg%2Bxml%22%7D%5D%7D">
-
 <title>Çay & Fon Takip</title>
 
-<!-- Firebase SDK'ları -->
+<!-- Firebase SDK'ları ve PDF Kütüphanesi -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyDP39vv_IMJHNHrXauWyfQ2VU9bqRinjTc",
@@ -329,6 +329,88 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
+// PDF Rapor Oluşturma Fonksiyonu (Hasköy Ortaokulu Resmi Tablo Formatı)
+function downloadPDFReport() {
+  if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
+  let k = monthKey();
+  let [y,m] = k.split('-');
+  const monthNames = {"01":"OCAK", "02":"ŞUBAT", "03":"MART", "04":"NİSAN", "05":"MAYIS", "06":"HAZİRAN", "07":"TEMMUZ", "08":"AĞUSTOS", "09":"EYLÜL", "10":"EKİM", "11":"KASIM", "12":"ARALIK"};
+  let monthStr = monthNames[m] || m;
+  let md = monthData();
+
+  let reportDiv = document.createElement('div');
+  reportDiv.style.cssText = "position:absolute; left:-9999px; top:0; background:#fff; padding:20px; font-family:Arial,sans-serif; color:#000; width:900px;";
+
+  let html = `
+    <h2 style="text-align:center; font-size:16px; font-weight:bold; margin-bottom:15px;">HASKÖY ORTAOKULU ${monthStr} ${y} ÇAY FON RAPORU</h2>
+    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+      <thead>
+        <tr style="background:#000; color:#fff; text-align:center;">
+          <th style="border:1px solid #000; padding:6px; text-align:left;">Öğretmen</th>
+          <th style="border:1px solid #000; padding:6px;">Çay Durumu</th>
+          <th style="border:1px solid #000; padding:6px;">Çay Tutarı</th>
+          <th style="border:1px solid #000; padding:6px;">Çay Tarihi</th>
+          <th style="border:1px solid #000; padding:6px;">Fon Durumu</th>
+          <th style="border:1px solid #000; padding:6px;">Fon Tutarı</th>
+          <th style="border:1px solid #000; padding:6px;">Fon Tarihi</th>
+          <th style="border:1px solid #000; padding:6px;">Toplam</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  let sortedTeachers = db.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,'tr',{sensitivity:'base'}));
+
+  sortedTeachers.forEach(t => {
+    let p = md[t.id] || {};
+    let teaEx = t.teaExempt, fundEx = t.fundExempt;
+    let teaPaid = p.tea, fundPaid = p.fund;
+
+    let teaStatusText = teaEx ? 'Muaf' : (teaPaid ? 'Ödendi' : 'Ödenmedi');
+    let teaBg = teaEx ? '#cccccc' : (teaPaid ? '#16864a' : '#c93a3a');
+    let teaColor = teaEx ? '#000' : '#fff';
+    let teaAmount = teaEx ? 0 : (teaPaid ? db.settings.tea : 0);
+    let teaDate = teaEx ? '' : (p.teaDate || '');
+
+    let fundStatusText = fundEx ? 'Muaf' : (fundPaid ? 'Ödendi' : 'Ödenmedi');
+    let fundBg = fundEx ? '#cccccc' : (fundPaid ? '#16864a' : '#c93a3a');
+    let fundColor = fundEx ? '#000' : '#fff';
+    let fundAmount = fundEx ? 0 : (fundPaid ? db.settings.fund : 0);
+    let fundDate = fundEx ? '' : (p.fundDate || '');
+
+    let total = teaAmount + fundAmount;
+
+    html += `
+      <tr>
+        <td style="border:1px solid #000; padding:5px; font-weight:bold;">${t.name}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center; background:${teaBg}; color:${teaColor}; font-weight:bold;">${teaStatusText}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center;">${teaAmount}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center;">${teaDate}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center; background:${fundBg}; color:${fundColor}; font-weight:bold;">${fundStatusText}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center;">${fundAmount}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center;">${fundDate}</td>
+        <td style="border:1px solid #000; padding:5px; text-align:center; font-weight:bold;">${total}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+  reportDiv.innerHTML = html;
+  document.body.appendChild(reportDiv);
+
+  let opt = {
+    margin:       10,
+    filename:     `cay-fon-raporu-${k}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  };
+
+  html2pdf().from(reportDiv).set(opt).save().then(() => {
+    document.body.removeChild(reportDiv);
+  });
+}
+
 function filterTeachers(){
   let q = (document.getElementById('teacherSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   let container = document.getElementById('teacherListContainer');
@@ -372,12 +454,19 @@ function filterTeachers(){
 
 function settingsHTML(){
   return `
-    <div class="section-title"><h2>Ayarlar</h2></div>
+    <div class="section-title"><h2>Ayarlar ve Raporlar</h2></div>
     <div class="settings">
       <div class="setting"><div class="row"><span>☕ Çay parası</span><input type="number" id="teaAmount" value="${db.settings.tea}"></div></div>
       <div class="setting"><div class="row"><span>💰 Fon parası</span><input type="number" id="fundAmount" value="${db.settings.fund}"></div></div>
       <button class="btn primary" onclick="saveSettings()">Ayarları Kaydet</button>
-      <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu rapor indir</button>
+      
+      <div class="setting">
+        <b>📄 PDF Aylık Rapor</b>
+        <div class="status" style="margin:6px 0 10px">Seçili aya ait tablo biçiminde resmi PDF raporu indirir.</div>
+        <button class="btn primary" onclick="downloadPDFReport()">📄 Seçili Ayın PDF Raporunu İndir</button>
+      </div>
+
+      <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu CSV rapor indir</button>
       
       <div class="setting">
         <b>☁️ Bulut Senkronizasyonu</b>
