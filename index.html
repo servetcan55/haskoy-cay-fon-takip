@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#292e88">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Çay & Fon">
@@ -14,7 +15,7 @@
 
 <title>Çay & Fon Takip</title>
 
-<!-- Firebase SDK'ları ve PDF Kütüphanesi -->
+<!-- Firebase SDK'ları ve html2pdf Kütüphanesi -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -116,8 +117,8 @@
     <h2>🔐 Yönetici Girişi</h2>
     <div class="status" style="margin-bottom:15px">Verileri düzenlemek için giriş yapmalısınız.</div>
     <form onsubmit="handleLogin(event)">
-      <div class="field"><label>E-posta</label><input type="email" id="loginEmail" placeholder="ornek@haskoy.com" required></div>
-      <div class="field"><label>Şifre</label><input type="password" id="loginPass" placeholder="******" required></div>
+      <div class="field"><label>E-posta</label><input type="email" id="loginEmail" placeholder="ornek@haskoy.com" required autocomplete="email"></div>
+      <div class="field"><label>Şifre</label><input type="password" id="loginPass" placeholder="******" required autocomplete="current-password"></div>
       <div id="loginError" style="color:var(--red);font-size:12px;margin:10px 0"></div>
       <button type="submit" class="btn primary" style="width:100%;margin-top:10px">Giriş Yap</button>
     </form>
@@ -329,7 +330,7 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// PDF Rapor Oluşturma Fonksiyonu (Hasköy Ortaokulu Resmi Tablo Formatı)
+// Güvenli ve Kesin PDF Rapor Oluşturma Fonksiyonu
 function downloadPDFReport() {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
   let k = monthKey();
@@ -338,8 +339,8 @@ function downloadPDFReport() {
   let monthStr = monthNames[m] || m;
   let md = monthData();
 
-  let reportDiv = document.createElement('div');
-  reportDiv.style.cssText = "position:absolute; left:-9999px; top:0; background:#fff; padding:20px; font-family:Arial,sans-serif; color:#000; width:900px;";
+  let tempDiv = document.createElement('div');
+  tempDiv.style.cssText = "position:fixed; top:0; left:0; width:950px; background:#fff; padding:25px; font-family:Arial,sans-serif; color:#000; z-index:99999; box-shadow:0 0 10px rgba(0,0,0,0.5);";
 
   let html = `
     <h2 style="text-align:center; font-size:16px; font-weight:bold; margin-bottom:15px;">HASKÖY ORTAOKULU ${monthStr} ${y} ÇAY FON RAPORU</h2>
@@ -395,19 +396,23 @@ function downloadPDFReport() {
   });
 
   html += `</tbody></table>`;
-  reportDiv.innerHTML = html;
-  document.body.appendChild(reportDiv);
+  tempDiv.innerHTML = html;
+  document.body.appendChild(tempDiv);
 
   let opt = {
     margin:       10,
     filename:     `cay-fon-raporu-${k}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true },
+    html2canvas:  { scale: 2, useCORS: true, logging: true },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
   };
 
-  html2pdf().from(reportDiv).set(opt).save().then(() => {
-    document.body.removeChild(reportDiv);
+  html2pdf().from(tempDiv).set(opt).save().then(() => {
+    document.body.removeChild(tempDiv);
+  }).catch(err => {
+    console.error("PDF oluşturma hatası:", err);
+    document.body.removeChild(tempDiv);
+    alert("PDF oluşturulurken bir hata oluştu.");
   });
 }
 
