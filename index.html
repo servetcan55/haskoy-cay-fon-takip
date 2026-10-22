@@ -341,7 +341,7 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// Güvenli Yazdırma / PDF Rapor Oluşturma Fonksiyonu
+// Mobil ve Masaüstü Uyumlu Hızlı Yazdırma / PDF Penceresi
 function downloadPDFReport() {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
   let k = monthKey();
@@ -464,7 +464,7 @@ function settingsHTML(){
       
       <div class="setting">
         <b>📄 PDF Aylık Rapor</b>
-        <div class="status" style="margin:6px 0 10px">Seçili aya ait tablo biçiminde resmi PDF raporu indirir.</div>
+        <div class="status" style="margin:6px 0 10px">Seçili aya ait resmi tablo raporunu oluşturur.</div>
         <button class="btn primary" onclick="downloadPDFReport()">📄 Seçili Ayın PDF Raporunu İndir</button>
       </div>
 
