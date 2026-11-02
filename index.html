@@ -36,12 +36,14 @@
   const docRef = dbFirestore.collection("cayFonData").doc("mainDoc");
 
   const LOCAL_KEY = 'cayFonTakipV1';
-  let db = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null') || {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[]};
-  let view = 'dash', editingId = null, historyTeacherId = null, editingExpenseId = null;
+  // db nesnesine "incomes" (ek gelirler) dizisi eklendi
+  let db = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null') || {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[], incomes:[]};
+  let view = 'dash', editingId = null, historyTeacherId = null, editingExpenseId = null, editingIncomeId = null;
 
   function migrateData() {
     if (!db.months) return;
     let changed = false;
+    if (!db.incomes) { db.incomes = []; changed = true; } // Yeni güncellemeyi alanlara incomes dizisi ekle
     Object.keys(db.months).forEach(k => {
       let m = db.months[k];
       if (m && typeof m === 'object') {
@@ -106,11 +108,12 @@
     docRef.onSnapshot((docSnap) => {
       if (docSnap.exists) {
         let data = docSnap.data();
-        if(data && (data.teachers?.length > 0 || Object.keys(data.months || {}).length > 0 || data.expenses?.length > 0)) {
+        if(data && (data.teachers?.length > 0 || Object.keys(data.months || {}).length > 0 || data.expenses?.length > 0 || data.incomes?.length > 0)) {
           db.teachers = Array.isArray(data.teachers) ? data.teachers : [];
           db.months = (data.months && typeof data.months === 'object') ? data.months : {};
           db.settings = data.settings || {tea:100, fund:100};
           db.expenses = Array.isArray(data.expenses) ? data.expenses : [];
+          db.incomes = Array.isArray(data.incomes) ? data.incomes : [];
           migrateData(); 
           localStorage.setItem(LOCAL_KEY, JSON.stringify(db));
         }
@@ -125,7 +128,7 @@
 </script>
 
 <style>
-:root{--navy:#292e88;--orange:#ec6701;--bg:#f5f6fb;--card:#fff;--text:#171a2b;--muted:#73788f;--line:#e6e8f0;--green:#16864a;--red:#c93a3a}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;background:var(--bg)}body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--text)}button,input,select{font:inherit}.app{width:100%;max-width:760px;margin:auto;padding-bottom:82px}.top{background:linear-gradient(135deg,var(--navy),#4147a7);color:#fff;padding:20px 18px 16px;border-radius:0 0 22px 22px;position:sticky;top:0;z-index:5}.brand{display:flex;align-items:center;justify-content:space-between}.brand h1{font-size:20px;margin:0}.brand small{opacity:.72;font-size:10px}.month{margin-top:13px;display:flex;gap:8px}.month select{flex:1;background:#fff;color:#171a2b !important;border:0;border-radius:11px;padding:11px 12px;font-weight:700}.month select option{color:#171a2b;background:#fff}.icon{border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:11px;width:42px;cursor:pointer}.content{padding:16px;overflow:visible}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.stat .label{font-size:11px;color:var(--muted)}.stat b{font-size:19px;display:block;margin-top:4px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.card h3{font-size:13px;margin:0 0 8px}.amount{font-size:18px;font-weight:800}.amount span{font-size:11px;color:var(--muted);font-weight:500}.section-title{display:flex;justify-content:space-between;align-items:center;margin:17px 0 9px}.section-title h2{font-size:16px;margin:0}.btn{border:0;border-radius:10px;padding:9px 11px;font-weight:750;cursor:pointer}.primary{background:var(--orange);color:#fff}.secondary{background:#eef0ff;color:var(--navy)}.teacher{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:11px;margin-bottom:8px}.teacher-head{display:flex;align-items:center;gap:8px}.avatar{width:38px;height:38px;border-radius:11px;background:#eef0ff;color:var(--navy);display:grid;place-items:center;font-weight:800}.name{font-weight:750;flex:1;font-size:14px}.status{font-size:10px;color:var(--muted)}.payrow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.pay{border:1px solid var(--line);background:#fafbfe;border-radius:10px;padding:8px;display:flex;justify-content:space-between;align-items:center}.pay b{font-size:11px}.pay button{border:0;border-radius:8px;padding:6px 8px;font-weight:800;font-size:11px;cursor:pointer}.paid{background:#e9f7ef;color:var(--green)}.unpaid{background:#fff0f0;color:var(--red)}.empty{background:#fff;border:1px dashed #cfd3e2;padding:22px;border-radius:14px;text-align:center;color:var(--muted)}.bottom{position:fixed;bottom:0;left:0;right:0;width:100%;height:64px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:10;box-shadow:0 -4px 14px rgba(20,25,70,.06)}.nav{width:min(760px,100%);height:64px;display:grid;grid-template-columns:repeat(3,1fr);padding:5px 9px calc(5px + env(safe-area-inset-bottom))}.nav button{border:0;background:none;color:var(--muted);padding:5px;border-radius:10px;font-size:11px;cursor:pointer}.nav button.active{color:var(--navy);background:#eef0ff;font-weight:800}.modal{position:fixed;inset:0;background:#0008;display:none;align-items:flex-end;z-index:20}.modal.open{display:flex}.sheet{background:#fff;width:100%;max-width:760px;margin:auto;border-radius:22px 22px 0 0;padding:18px;max-height:90vh;overflow:auto}.sheet h2{margin:0 0 13px}.field{margin:9px 0}.field label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;outline:0}.actions{display:flex;gap:7px;margin-top:13px}.actions button{flex:1}.settings{display:grid;gap:9px}.setting{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px}.setting input{width:105px;margin-left:auto;padding:8px;border:1px solid var(--line);border-radius:9px;display:block}.row{display:flex;align-items:center;justify-content:space-between}.hidden{display:none!important}
+:root{--navy:#292e88;--orange:#ec6701;--bg:#f5f6fb;--card:#fff;--text:#171a2b;--muted:#73788f;--line:#e6e8f0;--green:#16864a;--red:#c93a3a}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;background:var(--bg)}body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--text)}button,input,select{font:inherit}.app{width:100%;max-width:760px;margin:auto;padding-bottom:82px}.top{background:linear-gradient(135deg,var(--navy),#4147a7);color:#fff;padding:20px 18px 16px;border-radius:0 0 22px 22px;position:sticky;top:0;z-index:5}.brand{display:flex;align-items:center;justify-content:space-between}.brand h1{font-size:20px;margin:0}.brand small{opacity:.72;font-size:10px}.month{margin-top:13px;display:flex;gap:8px}.month select{flex:1;background:#fff;color:#171a2b !important;border:0;border-radius:11px;padding:11px 12px;font-weight:700}.month select option{color:#171a2b;background:#fff}.icon{border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:11px;width:42px;cursor:pointer}.content{padding:16px;overflow:visible}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.stat .label{font-size:11px;color:var(--muted)}.stat b{font-size:19px;display:block;margin-top:4px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.card h3{font-size:13px;margin:0 0 8px}.amount{font-size:18px;font-weight:800}.amount span{font-size:11px;color:var(--muted);font-weight:500}.section-title{display:flex;justify-content:space-between;align-items:center;margin:17px 0 9px}.section-title h2{font-size:16px;margin:0}.btn{border:0;border-radius:10px;padding:9px 11px;font-weight:750;cursor:pointer}.primary{background:var(--orange);color:#fff}.secondary{background:#eef0ff;color:var(--navy)}.success{background:#16864a;color:#fff}.teacher{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:11px;margin-bottom:8px}.teacher-head{display:flex;align-items:center;gap:8px}.avatar{width:38px;height:38px;border-radius:11px;background:#eef0ff;color:var(--navy);display:grid;place-items:center;font-weight:800}.avatar.income{background:#e9f7ef;color:#16864a}.name{font-weight:750;flex:1;font-size:14px}.status{font-size:10px;color:var(--muted)}.payrow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.pay{border:1px solid var(--line);background:#fafbfe;border-radius:10px;padding:8px;display:flex;justify-content:space-between;align-items:center}.pay b{font-size:11px}.pay button{border:0;border-radius:8px;padding:6px 8px;font-weight:800;font-size:11px;cursor:pointer}.paid{background:#e9f7ef;color:var(--green)}.unpaid{background:#fff0f0;color:var(--red)}.empty{background:#fff;border:1px dashed #cfd3e2;padding:22px;border-radius:14px;text-align:center;color:var(--muted)}.bottom{position:fixed;bottom:0;left:0;right:0;width:100%;height:64px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:10;box-shadow:0 -4px 14px rgba(20,25,70,.06)}.nav{width:min(760px,100%);height:64px;display:grid;grid-template-columns:repeat(3,1fr);padding:5px 9px calc(5px + env(safe-area-inset-bottom))}.nav button{border:0;background:none;color:var(--muted);padding:5px;border-radius:10px;font-size:11px;cursor:pointer}.nav button.active{color:var(--navy);background:#eef0ff;font-weight:800}.modal{position:fixed;inset:0;background:#0008;display:none;align-items:flex-end;z-index:20}.modal.open{display:flex}.sheet{background:#fff;width:100%;max-width:760px;margin:auto;border-radius:22px 22px 0 0;padding:18px;max-height:90vh;overflow:auto}.sheet h2{margin:0 0 13px}.field{margin:9px 0}.field label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}.field input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;outline:0}.actions{display:flex;gap:7px;margin-top:13px}.actions button{flex:1}.settings{display:grid;gap:9px}.setting{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px}.setting input{width:105px;margin-left:auto;padding:8px;border:1px solid var(--line);border-radius:9px;display:block}.row{display:flex;align-items:center;justify-content:space-between}.hidden{display:none!important}
 .login-box{max-width:400px;margin:80px auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center}
 @media(min-width:700px){.content{padding:22px}.top{padding:22px}.modal{align-items:center}.sheet{border-radius:20px;max-width:520px}}
 
@@ -149,6 +152,7 @@
 </head>
 <body>
 
+<!-- Giriş Ekranı -->
 <div id="loginScreen" class="hidden">
   <div class="login-box">
     <h2>🔐 Yönetici Girişi</h2>
@@ -162,6 +166,7 @@
   </div>
 </div>
 
+<!-- Ana Uygulama -->
 <div id="appContainer" class="hidden">
   <main class="app">
     <header class="top">
@@ -239,7 +244,7 @@ function initMonths(){
       arr.push(`${y}-${String(m).padStart(2,'0')}`);
     }
   }
-  let activeMonths = Object.keys(db.months || {}).concat((db.expenses||[]).map(e=>e.month));
+  let activeMonths = Object.keys(db.months || {}).concat((db.expenses||[]).map(e=>e.month)).concat((db.incomes||[]).map(i=>i.month));
   activeMonths.forEach(m => { if(m && !arr.includes(m)) arr.push(m); });
   arr.sort().reverse();
   s.innerHTML = arr.map(k => { let [a,b]=k.split('-'); return `<option value="${k}">${b}/${a}</option>`; }).join('');
@@ -311,11 +316,23 @@ function expensesFor(k){
   }, {tea:0, fund:0, total:0});
 }
 
-function allMonths(){ return Object.keys(db.months).concat((db.expenses||[]).map(e=>e.month)).filter((v,i,a)=>v&&a.indexOf(v)===i); }
+function incomesFor(k){
+  db.incomes = Array.isArray(db.incomes) ? db.incomes : [];
+  return db.incomes.filter(i => i.month === k).reduce((a,i)=>{
+    a[i.category] = (a[i.category] || 0) + Number(i.amount || 0);
+    a.total += Number(i.amount || 0);
+    return a;
+  }, {tea:0, fund:0, total:0});
+}
+
+function allMonths(){ return Object.keys(db.months).concat((db.expenses||[]).map(e=>e.month)).concat((db.incomes||[]).map(i=>i.month)).filter((v,i,a)=>v&&a.indexOf(v)===i); }
 function allCollection(){
   return allMonths().reduce((a,k)=>{
     let c = collectionFor(k);
-    a.tea += c.tea; a.fund += c.fund; a.total += c.total;
+    let inc = incomesFor(k);
+    a.tea += (c.tea + inc.tea); 
+    a.fund += (c.fund + inc.fund); 
+    a.total += (c.total + inc.total);
     return a;
   }, {tea:0, fund:0, total:0});
 }
@@ -329,13 +346,14 @@ function allExpense(){
   }, {tea:0, fund:0, total:0});
 }
 
+// HARCAMA MODALI VE FONKSİYONLARI
 function expenseModal(expenseId = null){
   editingExpenseId = expenseId;
   let defaultDate = new Date().toISOString().slice(0,10);
   let defaultCat = 'tea';
   let defaultAmount = '';
   let defaultNote = '';
-  let title = "Harcama Ekle";
+  let title = "Harcama (Gider) Ekle";
 
   if(editingExpenseId){
     let exp = db.expenses.find(x => x.id === editingExpenseId);
@@ -355,15 +373,14 @@ function expenseModal(expenseId = null){
     <div class="sheet">
       <h2>${title}</h2>
       <div class="field"><label>Harcama tarihi</label><input id="expenseDate" type="date" value="${defaultDate}"></div>
-      <div class="field"><label>Ay dönemi</label><div class="status">Seçtiğiniz tarih otomatik olarak ilgili aya kaydedilir.</div></div>
       <div class="field"><label>Harcama türü</label>
         <select id="expenseCategory" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px">
-          <option value="tea" ${defaultCat === 'tea' ? 'selected' : ''}>☕ Çay</option>
-          <option value="fund" ${defaultCat === 'fund' ? 'selected' : ''}>💰 Fon</option>
+          <option value="tea" ${defaultCat === 'tea' ? 'selected' : ''}>☕ Çay Kat.</option>
+          <option value="fund" ${defaultCat === 'fund' ? 'selected' : ''}>💰 Fon Kat.</option>
         </select>
       </div>
-      <div class="field"><label>Harcama miktarı</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750" value="${defaultAmount}"></div>
-      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker ve bardak" value="${defaultNote}"></div>
+      <div class="field"><label>Miktar (₺)</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750" value="${defaultAmount}"></div>
+      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker" value="${defaultNote}"></div>
       <div class="actions">
         <button class="btn secondary" onclick="closeModal()">Vazgeç</button>
         <button class="btn primary" onclick="saveExpense()">Kaydet</button>
@@ -380,29 +397,91 @@ function saveExpense(){
       category = document.getElementById('expenseCategory').value,
       date = document.getElementById('expenseDate').value;
 
-  if(!amount || amount < 0 || !note || !date){ alert('Harcama tarihi, miktarı ve açıklaması girilmelidir.'); return; }
+  if(!amount || amount < 0 || !note || !date){ alert('Lütfen bilgileri eksiksiz girin.'); return; }
   let month = date.slice(0,7);
   let displayDate = new Date(date+'T12:00:00').toLocaleDateString('tr-TR');
-
   db.expenses = Array.isArray(db.expenses) ? db.expenses : [];
   
   if(editingExpenseId){
     let expIndex = db.expenses.findIndex(x => x.id === editingExpenseId);
-    if(expIndex > -1){
-      db.expenses[expIndex] = { ...db.expenses[expIndex], month, category, amount, note, date: displayDate };
-    }
+    if(expIndex > -1) db.expenses[expIndex] = { ...db.expenses[expIndex], month, category, amount, note, date: displayDate };
   } else {
     db.expenses.push({id: crypto.randomUUID(), month, category, amount, note, date: displayDate});
   }
-
   save(); closeModal(); render();
 }
 
 function deleteExpense(id){
-  if(confirm('Bu harcama silinsin mi?')){
-    db.expenses = db.expenses.filter(e => e.id !== id);
-    save(); render();
+  if(confirm('Bu harcama silinsin mi?')){ db.expenses = db.expenses.filter(e => e.id !== id); save(); render(); }
+}
+
+// EK GELİR MODALI VE FONKSİYONLARI
+function incomeModal(incomeId = null){
+  editingIncomeId = incomeId;
+  let defaultDate = new Date().toISOString().slice(0,10);
+  let defaultCat = 'tea';
+  let defaultAmount = '';
+  let defaultNote = '';
+  let title = "Ek Gelir (Bağış vb.) Ekle";
+
+  if(editingIncomeId){
+    let inc = db.incomes.find(x => x.id === editingIncomeId);
+    if(inc){
+      title = "Ek Geliri Düzenle";
+      if(inc.date && inc.date.includes('.')) {
+         let parts = inc.date.split('.');
+         defaultDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      defaultCat = inc.category;
+      defaultAmount = inc.amount;
+      defaultNote = inc.note;
+    }
   }
+
+  document.getElementById('modal').innerHTML = `
+    <div class="sheet">
+      <h2>${title}</h2>
+      <div class="field"><label>Gelir tarihi</label><input id="incomeDate" type="date" value="${defaultDate}"></div>
+      <div class="field"><label>Gelirin Ekleneceği Kasa</label>
+        <select id="incomeCategory" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px">
+          <option value="tea" ${defaultCat === 'tea' ? 'selected' : ''}>☕ Çay Kasası</option>
+          <option value="fund" ${defaultCat === 'fund' ? 'selected' : ''}>💰 Fon Kasası</option>
+        </select>
+      </div>
+      <div class="field"><label>Miktar (₺)</label><input id="incomeAmount" type="number" min="0" step="0.01" placeholder="Örn. 400" value="${defaultAmount}"></div>
+      <div class="field"><label>Kimin Tarafından / Ne Geliri?</label><input id="incomeNote" placeholder="Örn. Ahmet Hoca Çay Makinesi Parası" value="${defaultNote}"></div>
+      <div class="actions">
+        <button class="btn secondary" onclick="closeModal()">Vazgeç</button>
+        <button class="btn success" onclick="saveIncome()">Geliri Kaydet</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>document.getElementById('incomeAmount').focus(), 100);
+}
+
+function saveIncome(){
+  let amount = Number(document.getElementById('incomeAmount').value),
+      note = document.getElementById('incomeNote').value.trim(),
+      category = document.getElementById('incomeCategory').value,
+      date = document.getElementById('incomeDate').value;
+
+  if(!amount || amount < 0 || !note || !date){ alert('Lütfen bilgileri eksiksiz girin.'); return; }
+  let month = date.slice(0,7);
+  let displayDate = new Date(date+'T12:00:00').toLocaleDateString('tr-TR');
+  db.incomes = Array.isArray(db.incomes) ? db.incomes : [];
+  
+  if(editingIncomeId){
+    let incIndex = db.incomes.findIndex(x => x.id === editingIncomeId);
+    if(incIndex > -1) db.incomes[incIndex] = { ...db.incomes[incIndex], month, category, amount, note, date: displayDate };
+  } else {
+    db.incomes.push({id: crypto.randomUUID(), month, category, amount, note, date: displayDate});
+  }
+  save(); closeModal(); render();
+}
+
+function deleteIncome(id){
+  if(confirm('Bu ek gelir silinsin mi? Kasadan düşülecektir.')){ db.incomes = db.incomes.filter(i => i.id !== id); save(); render(); }
 }
 
 function teacherHistory(id){
@@ -450,7 +529,7 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// 📌 DOSYA ADINI DİNAMİK OLARAK DEĞİŞTİRİP PDF YAZDIRAN FONKSİYON
+// DOSYA ADINI DİNAMİK OLARAK DEĞİŞTİRİP PDF YAZDIRAN FONKSİYON
 function downloadPDFReport() {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
   let k = monthKey(); // Örn: "2026-11"
@@ -458,8 +537,6 @@ function downloadPDFReport() {
   const monthNames = {"01":"OCAK", "02":"ŞUBAT", "03":"MART", "04":"NİSAN", "05":"MAYIS", "06":"HAZİRAN", "07":"TEMMUZ", "08":"AĞUSTOS", "09":"EYLÜL", "10":"EKİM", "11":"KASIM", "12":"ARALIK"};
   let monthStr = monthNames[m] || m;
   let cfg = getMonthConfig(k);
-  
-  // SADECE SEÇİLİ AYA AİT VERİLERİ (Ödemeler ve Muafiyetler) ÇEKER
   let md = monthData();
 
   let html = `
@@ -486,19 +563,14 @@ function downloadPDFReport() {
     let p = md[t.id] || {};
     let teaEx = t.teaExempt, fundEx = t.fundExempt;
     let teaPaid = p.tea, fundPaid = p.fund;
-
     let teaClass = teaEx ? 'td-exempt' : (teaPaid ? 'td-paid' : 'td-unpaid');
     let fundClass = fundEx ? 'td-exempt' : (fundPaid ? 'td-paid' : 'td-unpaid');
-
     let teaStatusText = teaEx ? 'Muaf' : (teaPaid ? 'Ödendi' : 'Ödenmedi');
     let fundStatusText = fundEx ? 'Muaf' : (fundPaid ? 'Ödendi' : 'Ödenmedi');
-
     let teaAmount = teaEx ? 0 : (teaPaid ? Number(cfg.tea) : 0);
     let fundAmount = fundEx ? 0 : (fundPaid ? Number(cfg.fund) : 0);
-    
     let teaDate = teaEx ? '' : (p.teaDate || '');
     let fundDate = fundEx ? '' : (p.fundDate || '');
-
     let total = teaAmount + fundAmount;
 
     html += `
@@ -514,22 +586,17 @@ function downloadPDFReport() {
       </tr>
     `;
   });
-
   html += `</tbody></table>`;
   
   let printArea = document.getElementById('nativePrintArea');
   printArea.innerHTML = html;
   
-  // DİNAMİK DOSYA ADI İÇİN TARAYICI TİTLE'INI GEÇİCİ OLARAK DEĞİŞTİRİYORUZ
   let originalTitle = document.title;
-  document.title = `cay-fon-raporu-${k}`; // Örn: cay-fon-raporu-2026-11
+  document.title = `cay-fon-raporu-${k}`; 
   
   setTimeout(() => {
     window.print();
-    // Yazdırma menüsü kapandığında (veya iptal edildiğinde) sayfa adını eski haline döndür
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 1000);
+    setTimeout(() => { document.title = originalTitle; }, 1000);
   }, 100);
 }
 
@@ -593,13 +660,11 @@ function settingsHTML(){
         <div class="row"><span>💰 Fon parası (${mLabel})</span><input type="number" id="fundAmount" value="${cfg.fund}"></div>
         <button class="btn primary" style="width:100%;margin-top:12px" onclick="saveSettings()">📅 ${mLabel} Ücretini Kaydet</button>
       </div>
-      
       <div class="setting">
         <b>📄 PDF Aylık Rapor</b>
         <div class="status" style="margin:6px 0 10px">Seçili aya ait resmi tablo raporunu oluşturur (Yazdır -> PDF Olarak Kaydet).</div>
         <button id="pdfDownloadBtn" class="btn primary" onclick="downloadPDFReport()">📄 Seçili Ayın PDF Raporunu İndir</button>
       </div>
-
       <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu CSV rapor indir</button>
       
       <div class="setting">
@@ -607,7 +672,6 @@ function settingsHTML(){
         <div class="status" style="margin:6px 0 10px">Verileri buluta güvenle kaydeder.</div>
         <button class="btn primary" onclick="syncToCloud()">☁️ Verileri Buluta Eşitle</button>
       </div>
-
       <div class="setting"><b>💾 Veri Yedekleme</b><div class="status" style="margin:6px 0 10px">Yedekleme dosyası oluşturabilirsiniz.</div>
         <div class="actions"><button class="btn secondary" onclick="backupData()">Yedeği Dışa Aktar</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Yedeği Yükle</button></div>
         <input id="backupFile" type="file" accept=".json,application/json" class="hidden" onchange="restoreData(event)">
@@ -615,7 +679,9 @@ function settingsHTML(){
       <div class="setting"><b>🗑️ Verileri Sıfırla</b><div class="status" style="margin:6px 0 10px">Tüm öğretmen ve ödeme kayıtlarını siler.</div><button class="btn secondary" onclick="resetData()">Tüm Verileri Sıfırla</button></div>
       <div class="setting"><b>📥 Öğretmenleri Toplu Yükle</b><div class="status" style="margin:6px 0 10px">Excel (.xlsx/.xls) veya CSV dosyasındaki ilk sütundaki isimleri topluca ekler.</div><button class="btn primary" onclick="document.getElementById('teacherImportFile').click()">📥 Excel / CSV Seç</button></div>
       <input id="teacherImportFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden" onchange="importTeachersFile(event)">
-      <div class="setting"><b>🧾 Harcama Yönetimi</b><div class="status" style="margin:6px 0 10px">Çay veya fon parasından yapılan harcamaları buradan ekleyebilirsiniz.</div><button class="btn primary" onclick="expenseModal()">+ Harcama Ekle</button></div>
+      
+      <div class="setting"><b>🧾 Harcama Yönetimi</b><div class="status" style="margin:6px 0 10px">Kasadan yapılan harcamaları buradan ekleyebilirsiniz.</div><button class="btn primary" onclick="expenseModal()">+ Harcama Ekle</button></div>
+      <div class="setting" style="border-color:#16864a"><b>💰 Ek Gelir (Bağış) Yönetimi</b><div class="status" style="margin:6px 0 10px">Öğretmen aidatı dışında kasaya giren özel paraları ekleyin.</div><button class="btn success" onclick="incomeModal()">+ Ek Gelir Ekle</button></div>
 
       <div class="setting">
         <b>🔒 Oturum İşlemleri</b>
@@ -675,6 +741,7 @@ function closeModal(){
   document.getElementById('modal').classList.remove('open');
   editingId = null;
   editingExpenseId = null;
+  editingIncomeId = null;
 }
 
 function saveTeacher(){
@@ -784,7 +851,7 @@ function restoreData(event){
 
 function resetData(){
   if(confirm('TÜM öğretmen ve ödeme verileri silinsin mi?')){
-    db = {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[]};
+    db = {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[], incomes:[]};
     save(); render();
   }
 }
@@ -805,16 +872,37 @@ function exportCSV(){
 function render(){
   initMonths();
   let k = monthKey();
-  let c = collectionFor(k), e = expensesFor(k), ac = allCollection(), ae = allExpense();
+  
+  // Hesaplamalar
+  let baseC = collectionFor(k); 
+  let inc = incomesFor(k); 
+  let e = expensesFor(k); 
+  
+  let c = {
+    tea: baseC.tea + inc.tea,
+    fund: baseC.fund + inc.fund,
+    total: baseC.total + inc.total
+  };
+  
+  let ac = allCollection(), ae = allExpense();
+  
   let teaRemain = c.tea - e.tea, fundRemain = c.fund - e.fund;
   let money = n => Number(n||0).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2})+' ₺';
   let [y,m] = k.split('-');
   let monthLabel = m + '/' + y;
+  
   let expenseList = (db.expenses || []).filter(x => x.month === k).slice().reverse();
+  let incomeList = (db.incomes || []).filter(i => i.month === k).slice().reverse();
 
   if(view === 'dash'){
     document.getElementById('dashboard').innerHTML = `
-      <div class="section-title"><h2>📊 ${monthLabel} Özeti</h2><button class="btn primary" onclick="expenseModal()">+ Harcama</button></div>
+      <div class="section-title">
+        <h2>📊 ${monthLabel} Özeti</h2>
+        <div style="display:flex;gap:5px">
+          <button class="btn success" onclick="incomeModal()">+ Gelir</button>
+          <button class="btn primary" onclick="expenseModal()">+ Gider</button>
+        </div>
+      </div>
       
       <div class="stats">
         <div class="stat"><div class="label">Bu ay toplanan</div><b>${money(c.total)}</b></div>
@@ -839,13 +927,31 @@ function render(){
         <div class="card" style="grid-column: 1 / -1;"><h3>💵 Mevcut para</h3><div class="amount">${money(ac.total - ae.total)}</div><div class="status" style="margin-top:6px">Toplam tahsilat − toplam harcama</div></div>
       </div>
       
-      <div class="section-title"><h2>🧾 ${monthLabel} Harcamaları</h2></div>
+      <!-- Ek Gelir Listesi -->
+      ${incomeList.length ? `
+        <div class="section-title"><h2 style="color:#16864a">💸 ${monthLabel} Ek Gelirleri</h2></div>
+        ${incomeList.map(x => `
+          <div class="teacher" style="border-color:#16864a">
+            <div class="teacher-head">
+              <div class="avatar income">${x.category==='tea'?'☕':'💰'}</div>
+              <div class="name">${x.note}<div class="status">${x.category==='tea'?'Çay Kasası':'Fon Kasası'} • ${x.date}</div></div>
+              <b style="margin-right:10px; color:#16864a;">+${money(x.amount)}</b>
+              <div style="display:flex;gap:5px;">
+                <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="incomeModal('${x.id}')">Düzenle</button>
+                <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="deleteIncome('${x.id}')">Sil</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      ` : ''}
+
+      <div class="section-title"><h2>🧾 ${monthLabel} Harcamaları (Giderler)</h2></div>
       ${expenseList.length ? expenseList.map(x => `
         <div class="teacher">
           <div class="teacher-head">
             <div class="avatar">${x.category==='tea'?'☕':'💰'}</div>
             <div class="name">${x.note}<div class="status">${x.category==='tea'?'Çay':'Fon'} • ${x.date}</div></div>
-            <b style="margin-right:10px">${money(x.amount)}</b>
+            <b style="margin-right:10px; color:#c93a3a">-${money(x.amount)}</b>
             <div style="display:flex;gap:5px;">
               <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="expenseModal('${x.id}')">Düzenle</button>
               <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="deleteExpense('${x.id}')">Sil</button>
