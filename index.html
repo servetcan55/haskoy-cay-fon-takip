@@ -13,7 +13,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23292e88%22/><text x=%2250%%22 y=%2255%%22 font-size=%2255%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>☕</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23292e88%22/><text x=%2250%%22 y=%2255%%22 font-size=%2255%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>☕</text></svg>">
 
-<title>Çay & Fon Takip</title>
+<title id="appTitle">Çay & Fon Takip</title>
 
 <!-- Firebase SDK'ları -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -450,14 +450,16 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// 📌 EN GARANTİLİ YERLEŞİK YAZDIRMA (NATIVE PRINT) ÇÖZÜMÜ
+// 📌 DOSYA ADINI DİNAMİK OLARAK DEĞİŞTİRİP PDF YAZDIRAN FONKSİYON
 function downloadPDFReport() {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
-  let k = monthKey();
+  let k = monthKey(); // Örn: "2026-11"
   let [y,m] = k.split('-');
   const monthNames = {"01":"OCAK", "02":"ŞUBAT", "03":"MART", "04":"NİSAN", "05":"MAYIS", "06":"HAZİRAN", "07":"TEMMUZ", "08":"AĞUSTOS", "09":"EYLÜL", "10":"EKİM", "11":"KASIM", "12":"ARALIK"};
   let monthStr = monthNames[m] || m;
   let cfg = getMonthConfig(k);
+  
+  // SADECE SEÇİLİ AYA AİT VERİLERİ (Ödemeler ve Muafiyetler) ÇEKER
   let md = monthData();
 
   let html = `
@@ -518,10 +520,16 @@ function downloadPDFReport() {
   let printArea = document.getElementById('nativePrintArea');
   printArea.innerHTML = html;
   
-  // HTML hazır olunca yerleşik yazdırma menüsünü tetikliyoruz. 
-  // Telefondan bu menü sayesinde anında temiz bir PDF dosyası indirebilirsiniz.
+  // DİNAMİK DOSYA ADI İÇİN TARAYICI TİTLE'INI GEÇİCİ OLARAK DEĞİŞTİRİYORUZ
+  let originalTitle = document.title;
+  document.title = `cay-fon-raporu-${k}`; // Örn: cay-fon-raporu-2026-11
+  
   setTimeout(() => {
     window.print();
+    // Yazdırma menüsü kapandığında (veya iptal edildiğinde) sayfa adını eski haline döndür
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
   }, 100);
 }
 
