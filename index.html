@@ -38,7 +38,7 @@
 
   const LOCAL_KEY = 'cayFonTakipV1';
   let db = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null') || {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[]};
-  let view = 'dash', editingId = null, historyTeacherId = null;
+  let view = 'dash', editingId = null, historyTeacherId = null, editingExpenseId = null;
 
   // ESKİ VERİLERİ YENİ SİSTEME UYARLAMA FONKSİYONU
   function migrateData() {
@@ -191,6 +191,7 @@ function monthKey(){
 function getMonthConfig(k){
   db.months[k] ??= {};
   if(!db.months[k].settings){
+    // Önceki aylardan en yakın olanın ücretini bul, yoksa genel ayarlardan veya varsayılan 100'den al
     let allKeys = Object.keys(db.months).sort();
     let fallbackTea = Number(db.settings?.tea || 100);
     let fallbackFund = Number(db.settings?.fund || 100);
@@ -319,16 +320,47 @@ function allExpense(){
   }, {tea:0, fund:0, total:0});
 }
 
-function expenseModal(){
+// Yeni Harcama veya Düzenleme Modalı
+function expenseModal(expenseId = null){
+  editingExpenseId = expenseId;
+  let defaultDate = new Date().toISOString().slice(0,10);
+  let defaultCat = 'tea';
+  let defaultAmount = '';
+  let defaultNote = '';
+  let title = "Harcama Ekle";
+
+  if(editingExpenseId){
+    let exp = db.expenses.find(x => x.id === editingExpenseId);
+    if(exp){
+      title = "Harcamayı Düzenle";
+      // Kaydedilen date string formatında olabilir ('02.11.2026'), bunu YYYY-MM-DD'ye çevirmeye çalışalım
+      if(exp.date && exp.date.includes('.')) {
+         let parts = exp.date.split('.');
+         defaultDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      defaultCat = exp.category;
+      defaultAmount = exp.amount;
+      defaultNote = exp.note;
+    }
+  }
+
   document.getElementById('modal').innerHTML = `
     <div class="sheet">
-      <h2>Harcama Ekle</h2>
-      <div class="field"><label>Harcama tarihi</label><input id="expenseDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <h2>${title}</h2>
+      <div class="field"><label>Harcama tarihi</label><input id="expenseDate" type="date" value="${defaultDate}"></div>
       <div class="field"><label>Ay dönemi</label><div class="status">Seçtiğiniz tarih otomatik olarak ilgili aya kaydedilir.</div></div>
-      <div class="field"><label>Harcama türü</label><select id="expenseCategory" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px"><option value="tea">☕ Çay</option><option value="fund">💰 Fon</option></select></div>
-      <div class="field"><label>Harcama miktarı</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750"></div>
-      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker ve bardak"></div>
-      <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveExpense()">Kaydet</button></div>
+      <div class="field"><label>Harcama türü</label>
+        <select id="expenseCategory" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px">
+          <option value="tea" ${defaultCat === 'tea' ? 'selected' : ''}>☕ Çay</option>
+          <option value="fund" ${defaultCat === 'fund' ? 'selected' : ''}>💰 Fon</option>
+        </select>
+      </div>
+      <div class="field"><label>Harcama miktarı</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750" value="${defaultAmount}"></div>
+      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker ve bardak" value="${defaultNote}"></div>
+      <div class="actions">
+        <button class="btn secondary" onclick="closeModal()">Vazgeç</button>
+        <button class="btn primary" onclick="saveExpense()">Kaydet</button>
+      </div>
     </div>
   `;
   document.getElementById('modal').classList.add('open');
@@ -340,10 +372,24 @@ function saveExpense(){
       note = document.getElementById('expenseNote').value.trim(),
       category = document.getElementById('expenseCategory').value,
       date = document.getElementById('expenseDate').value;
+
   if(!amount || amount < 0 || !note || !date){ alert('Harcama tarihi, miktarı ve açıklaması girilmelidir.'); return; }
   let month = date.slice(0,7);
+  let displayDate = new Date(date+'T12:00:00').toLocaleDateString('tr-TR');
+
   db.expenses = Array.isArray(db.expenses) ? db.expenses : [];
-  db.expenses.push({id: crypto.randomUUID(), month, category, amount, note, date: new Date(date+'T12:00:00').toLocaleDateString('tr-TR')});
+  
+  if(editingExpenseId){
+    // Mevcut harcamayı düzenle
+    let expIndex = db.expenses.findIndex(x => x.id === editingExpenseId);
+    if(expIndex > -1){
+      db.expenses[expIndex] = { ...db.expenses[expIndex], month, category, amount, note, date: displayDate };
+    }
+  } else {
+    // Yeni harcama ekle
+    db.expenses.push({id: crypto.randomUUID(), month, category, amount, note, date: displayDate});
+  }
+
   save(); closeModal(); render();
 }
 
@@ -627,6 +673,7 @@ function editTeacher(id){
 function closeModal(){
   document.getElementById('modal').classList.remove('open');
   editingId = null;
+  editingExpenseId = null;
 }
 
 function saveTeacher(){
@@ -793,8 +840,11 @@ function render(){
           <div class="teacher-head">
             <div class="avatar">${x.category==='tea'?'☕':'💰'}</div>
             <div class="name">${x.note}<div class="status">${x.category==='tea'?'Çay':'Fon'} • ${x.date}</div></div>
-            <b>${money(x.amount)}</b>
-            <button class="btn secondary" onclick="deleteExpense('${x.id}')">Sil</button>
+            <b style="margin-right:10px">${money(x.amount)}</b>
+            <div style="display:flex;gap:5px;">
+              <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="expenseModal('${x.id}')">Düzenle</button>
+              <button class="btn secondary" style="padding:4px 8px;font-size:11px" onclick="deleteExpense('${x.id}')">Sil</button>
+            </div>
           </div>
         </div>
       `).join('') : '<div class="empty">Bu ay henüz harcama girilmedi.</div>'}
