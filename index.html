@@ -36,30 +36,8 @@
   const docRef = dbFirestore.collection("cayFonData").doc("mainDoc");
 
   const LOCAL_KEY = 'cayFonTakipV1';
-  // db nesnesine "incomes" (ek gelirler) dizisi eklendi
   let db = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null') || {teachers:[], months:{}, settings:{tea:100, fund:100}, expenses:[], incomes:[]};
   let view = 'dash', editingId = null, historyTeacherId = null, editingExpenseId = null, editingIncomeId = null;
-
-  function migrateData() {
-    if (!db.months) return;
-    let changed = false;
-    if (!db.incomes) { db.incomes = []; changed = true; } // Yeni güncellemeyi alanlara incomes dizisi ekle
-    Object.keys(db.months).forEach(k => {
-      let m = db.months[k];
-      if (m && typeof m === 'object') {
-        if (!m.data) { m.data = {}; changed = true; }
-        Object.keys(m).forEach(key => {
-          if (key !== 'data' && key !== 'settings') {
-            m.data[key] = m[key];
-            delete m[key];
-            changed = true;
-          }
-        });
-      }
-    });
-    if (changed) save();
-  }
-  migrateData(); 
 
   function save() {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(db));
@@ -104,23 +82,43 @@
     }
   });
 
+  // HATA ÇÖZÜMÜ: Veri dönüştürme ve kaydetme işlemleri sadece buluttan en güncel veri geldikten SONRA yapılır.
   function initApp() {
     docRef.onSnapshot((docSnap) => {
       if (docSnap.exists) {
         let data = docSnap.data();
-        if(data && (data.teachers?.length > 0 || Object.keys(data.months || {}).length > 0 || data.expenses?.length > 0 || data.incomes?.length > 0)) {
+        if(data) {
           db.teachers = Array.isArray(data.teachers) ? data.teachers : [];
           db.months = (data.months && typeof data.months === 'object') ? data.months : {};
           db.settings = data.settings || {tea:100, fund:100};
           db.expenses = Array.isArray(data.expenses) ? data.expenses : [];
           db.incomes = Array.isArray(data.incomes) ? data.incomes : [];
-          migrateData(); 
+          
+          let changed = false;
+          Object.keys(db.months).forEach(k => {
+            let m = db.months[k];
+            if (m && typeof m === 'object') {
+              if (!m.data) { m.data = {}; changed = true; }
+              Object.keys(m).forEach(key => {
+                if (key !== 'data' && key !== 'settings') {
+                  m.data[key] = m[key];
+                  delete m[key];
+                  changed = true;
+                }
+              });
+            }
+          });
+
+          db.teachers.forEach(t=>{t.teaExempt=!!t.teaExempt;t.fundExempt=!!t.fundExempt});
+          
           localStorage.setItem(LOCAL_KEY, JSON.stringify(db));
+          
+          // Eğer buluttaki eski yapıyı düzenlediysek, sadece o zaman bulutu günceller.
+          if (changed) { docRef.set(db).catch(e => console.error(e)); }
         }
       } else {
         save();
       }
-      db.teachers.forEach(t=>{t.teaExempt=!!t.teaExempt;t.fundExempt=!!t.fundExempt});
       initMonths();
       if(typeof render === 'function') render();
     });
@@ -152,7 +150,6 @@
 </head>
 <body>
 
-<!-- Giriş Ekranı -->
 <div id="loginScreen" class="hidden">
   <div class="login-box">
     <h2>🔐 Yönetici Girişi</h2>
@@ -166,7 +163,6 @@
   </div>
 </div>
 
-<!-- Ana Uygulama -->
 <div id="appContainer" class="hidden">
   <main class="app">
     <header class="top">
@@ -346,7 +342,6 @@ function allExpense(){
   }, {tea:0, fund:0, total:0});
 }
 
-// HARCAMA MODALI VE FONKSİYONLARI
 function expenseModal(expenseId = null){
   editingExpenseId = expenseId;
   let defaultDate = new Date().toISOString().slice(0,10);
@@ -373,14 +368,15 @@ function expenseModal(expenseId = null){
     <div class="sheet">
       <h2>${title}</h2>
       <div class="field"><label>Harcama tarihi</label><input id="expenseDate" type="date" value="${defaultDate}"></div>
+      <div class="field"><label>Ay dönemi</label><div class="status">Seçtiğiniz tarih otomatik olarak ilgili aya kaydedilir.</div></div>
       <div class="field"><label>Harcama türü</label>
         <select id="expenseCategory" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px">
           <option value="tea" ${defaultCat === 'tea' ? 'selected' : ''}>☕ Çay Kat.</option>
           <option value="fund" ${defaultCat === 'fund' ? 'selected' : ''}>💰 Fon Kat.</option>
         </select>
       </div>
-      <div class="field"><label>Miktar (₺)</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750" value="${defaultAmount}"></div>
-      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker" value="${defaultNote}"></div>
+      <div class="field"><label>Harcama miktarı</label><input id="expenseAmount" type="number" min="0" step="0.01" placeholder="Örn. 750" value="${defaultAmount}"></div>
+      <div class="field"><label>Ne için harcandı?</label><input id="expenseNote" placeholder="Örn. Çay, şeker ve bardak" value="${defaultNote}"></div>
       <div class="actions">
         <button class="btn secondary" onclick="closeModal()">Vazgeç</button>
         <button class="btn primary" onclick="saveExpense()">Kaydet</button>
@@ -397,25 +393,31 @@ function saveExpense(){
       category = document.getElementById('expenseCategory').value,
       date = document.getElementById('expenseDate').value;
 
-  if(!amount || amount < 0 || !note || !date){ alert('Lütfen bilgileri eksiksiz girin.'); return; }
+  if(!amount || amount < 0 || !note || !date){ alert('Harcama tarihi, miktarı ve açıklaması girilmelidir.'); return; }
   let month = date.slice(0,7);
   let displayDate = new Date(date+'T12:00:00').toLocaleDateString('tr-TR');
+
   db.expenses = Array.isArray(db.expenses) ? db.expenses : [];
   
   if(editingExpenseId){
     let expIndex = db.expenses.findIndex(x => x.id === editingExpenseId);
-    if(expIndex > -1) db.expenses[expIndex] = { ...db.expenses[expIndex], month, category, amount, note, date: displayDate };
+    if(expIndex > -1){
+      db.expenses[expIndex] = { ...db.expenses[expIndex], month, category, amount, note, date: displayDate };
+    }
   } else {
     db.expenses.push({id: crypto.randomUUID(), month, category, amount, note, date: displayDate});
   }
+
   save(); closeModal(); render();
 }
 
 function deleteExpense(id){
-  if(confirm('Bu harcama silinsin mi?')){ db.expenses = db.expenses.filter(e => e.id !== id); save(); render(); }
+  if(confirm('Bu harcama silinsin mi?')){
+    db.expenses = db.expenses.filter(e => e.id !== id);
+    save(); render();
+  }
 }
 
-// EK GELİR MODALI VE FONKSİYONLARI
 function incomeModal(incomeId = null){
   editingIncomeId = incomeId;
   let defaultDate = new Date().toISOString().slice(0,10);
@@ -529,10 +531,9 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// DOSYA ADINI DİNAMİK OLARAK DEĞİŞTİRİP PDF YAZDIRAN FONKSİYON
 function downloadPDFReport() {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
-  let k = monthKey(); // Örn: "2026-11"
+  let k = monthKey(); 
   let [y,m] = k.split('-');
   const monthNames = {"01":"OCAK", "02":"ŞUBAT", "03":"MART", "04":"NİSAN", "05":"MAYIS", "06":"HAZİRAN", "07":"TEMMUZ", "08":"AĞUSTOS", "09":"EYLÜL", "10":"EKİM", "11":"KASIM", "12":"ARALIK"};
   let monthStr = monthNames[m] || m;
@@ -660,11 +661,13 @@ function settingsHTML(){
         <div class="row"><span>💰 Fon parası (${mLabel})</span><input type="number" id="fundAmount" value="${cfg.fund}"></div>
         <button class="btn primary" style="width:100%;margin-top:12px" onclick="saveSettings()">📅 ${mLabel} Ücretini Kaydet</button>
       </div>
+      
       <div class="setting">
         <b>📄 PDF Aylık Rapor</b>
         <div class="status" style="margin:6px 0 10px">Seçili aya ait resmi tablo raporunu oluşturur (Yazdır -> PDF Olarak Kaydet).</div>
         <button id="pdfDownloadBtn" class="btn primary" onclick="downloadPDFReport()">📄 Seçili Ayın PDF Raporunu İndir</button>
       </div>
+
       <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu CSV rapor indir</button>
       
       <div class="setting">
@@ -672,6 +675,7 @@ function settingsHTML(){
         <div class="status" style="margin:6px 0 10px">Verileri buluta güvenle kaydeder.</div>
         <button class="btn primary" onclick="syncToCloud()">☁️ Verileri Buluta Eşitle</button>
       </div>
+
       <div class="setting"><b>💾 Veri Yedekleme</b><div class="status" style="margin:6px 0 10px">Yedekleme dosyası oluşturabilirsiniz.</div>
         <div class="actions"><button class="btn secondary" onclick="backupData()">Yedeği Dışa Aktar</button><button class="btn secondary" onclick="document.getElementById('backupFile').click()">Yedeği Yükle</button></div>
         <input id="backupFile" type="file" accept=".json,application/json" class="hidden" onchange="restoreData(event)">
@@ -873,7 +877,6 @@ function render(){
   initMonths();
   let k = monthKey();
   
-  // Hesaplamalar
   let baseC = collectionFor(k); 
   let inc = incomesFor(k); 
   let e = expensesFor(k); 
@@ -927,7 +930,6 @@ function render(){
         <div class="card" style="grid-column: 1 / -1;"><h3>💵 Mevcut para</h3><div class="amount">${money(ac.total - ae.total)}</div><div class="status" style="margin-top:6px">Toplam tahsilat − toplam harcama</div></div>
       </div>
       
-      <!-- Ek Gelir Listesi -->
       ${incomeList.length ? `
         <div class="section-title"><h2 style="color:#16864a">💸 ${monthLabel} Ek Gelirleri</h2></div>
         ${incomeList.map(x => `
