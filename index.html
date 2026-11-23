@@ -539,8 +539,8 @@ function teacherHistory(id){
   document.getElementById('modal').classList.add('open');
 }
 
-// 📌 YENİLENEN, HER ŞEYİ KAPSAYAN PDF RAPORU
-function downloadPDFReport() {
+// 📌 TAM RAPOR VE SADECE ÖĞRETMEN LİSTESİ PDF FONKSİYONU
+function downloadPDFReport(onlyTeachers = false) {
   if(!db.teachers.length){ alert('Listede hiç öğretmen yok.'); return; }
   let k = monthKey(); 
   let [y,m] = k.split('-');
@@ -617,89 +617,92 @@ function downloadPDFReport() {
       </tr>
   </tbody></table>`;
   
-  // Ek Gelirler Bölümü
-  let incomeList = (db.incomes || []).filter(i => i.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
-  let i_teaTotal = 0, i_fundTotal = 0;
-  if(incomeList.length > 0) {
-    html += `
-      <div class="pdf-title" style="color:#16864a; border-bottom-color:#16864a;">2. EK GELİRLER (BAĞIŞ V.B.)</div>
-      <table>
-        <thead>
+  // Sadece öğretmen listesi seçilmediyse Ek Gelir, Gider ve Kasa Özetini de ekle
+  if (!onlyTeachers) {
+    // Ek Gelirler Bölümü
+    let incomeList = (db.incomes || []).filter(i => i.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
+    let i_teaTotal = 0, i_fundTotal = 0;
+    if(incomeList.length > 0) {
+      html += `
+        <div class="pdf-title" style="color:#16864a; border-bottom-color:#16864a;">2. EK GELİRLER (BAĞIŞ V.B.)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left; background-color:#16864a !important;">Açıklama / Kimden</th>
+              <th style="background-color:#16864a !important;">Tarih</th>
+              <th style="background-color:#16864a !important;">Kasa</th>
+              <th style="background-color:#16864a !important;">Tutar</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      incomeList.forEach(inc => {
+        if(inc.category === 'tea') i_teaTotal += Number(inc.amount);
+        if(inc.category === 'fund') i_fundTotal += Number(inc.amount);
+        let catName = inc.category === 'tea' ? '☕ Çay' : '💰 Fon';
+        html += `<tr><td style="text-align:left;">${inc.note}</td><td>${inc.date}</td><td>${catName}</td><td style="font-weight:bold; color:#16864a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">+${money(inc.amount)}</td></tr>`;
+      });
+      html += `
           <tr>
-            <th style="text-align:left; background-color:#16864a !important;">Açıklama / Kimden</th>
-            <th style="background-color:#16864a !important;">Tarih</th>
-            <th style="background-color:#16864a !important;">Kasa</th>
-            <th style="background-color:#16864a !important;">Tutar</th>
+            <td colspan="3" style="text-align:right; font-weight:bold;">EK GELİR TOPLAMI:</td>
+            <td style="font-weight:bold; background-color:#e9f7ef !important; color:#16864a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">${money(i_teaTotal + i_fundTotal)}</td>
           </tr>
-        </thead>
-        <tbody>
-    `;
-    incomeList.forEach(inc => {
-      if(inc.category === 'tea') i_teaTotal += Number(inc.amount);
-      if(inc.category === 'fund') i_fundTotal += Number(inc.amount);
-      let catName = inc.category === 'tea' ? '☕ Çay' : '💰 Fon';
-      html += `<tr><td style="text-align:left;">${inc.note}</td><td>${inc.date}</td><td>${catName}</td><td style="font-weight:bold; color:#16864a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">+${money(inc.amount)}</td></tr>`;
-    });
-    html += `
-        <tr>
-          <td colspan="3" style="text-align:right; font-weight:bold;">EK GELİR TOPLAMI:</td>
-          <td style="font-weight:bold; background-color:#e9f7ef !important; color:#16864a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">${money(i_teaTotal + i_fundTotal)}</td>
-        </tr>
-    </tbody></table>`;
-  }
+      </tbody></table>`;
+    }
 
-  // Giderler Bölümü
-  let expenseList = (db.expenses || []).filter(e => e.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
-  let ex_teaTotal = 0, ex_fundTotal = 0;
-  if(expenseList.length > 0) {
-    html += `
-      <div class="pdf-title" style="color:#c93a3a; border-bottom-color:#c93a3a;">3. HARCAMALAR (GİDERLER)</div>
-      <table>
-        <thead>
+    // Giderler Bölümü
+    let expenseList = (db.expenses || []).filter(e => e.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
+    let ex_teaTotal = 0, ex_fundTotal = 0;
+    if(expenseList.length > 0) {
+      html += `
+        <div class="pdf-title" style="color:#c93a3a; border-bottom-color:#c93a3a;">3. HARCAMALAR (GİDERLER)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left; background-color:#c93a3a !important;">Açıklama / Nereye</th>
+              <th style="background-color:#c93a3a !important;">Tarih</th>
+              <th style="background-color:#c93a3a !important;">Kasa</th>
+              <th style="background-color:#c93a3a !important;">Tutar</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      expenseList.forEach(exp => {
+        if(exp.category === 'tea') ex_teaTotal += Number(exp.amount);
+        if(exp.category === 'fund') ex_fundTotal += Number(exp.amount);
+        let catName = exp.category === 'tea' ? '☕ Çay' : '💰 Fon';
+        html += `<tr><td style="text-align:left;">${exp.note}</td><td>${exp.date}</td><td>${catName}</td><td style="font-weight:bold; color:#c93a3a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">-${money(exp.amount)}</td></tr>`;
+      });
+      html += `
           <tr>
-            <th style="text-align:left; background-color:#c93a3a !important;">Açıklama / Nereye</th>
-            <th style="background-color:#c93a3a !important;">Tarih</th>
-            <th style="background-color:#c93a3a !important;">Kasa</th>
-            <th style="background-color:#c93a3a !important;">Tutar</th>
+            <td colspan="3" style="text-align:right; font-weight:bold;">GİDER TOPLAMI:</td>
+            <td style="font-weight:bold; background-color:#fff0f0 !important; color:#c93a3a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">${money(ex_teaTotal + ex_fundTotal)}</td>
           </tr>
-        </thead>
-        <tbody>
-    `;
-    expenseList.forEach(exp => {
-      if(exp.category === 'tea') ex_teaTotal += Number(exp.amount);
-      if(exp.category === 'fund') ex_fundTotal += Number(exp.amount);
-      let catName = exp.category === 'tea' ? '☕ Çay' : '💰 Fon';
-      html += `<tr><td style="text-align:left;">${exp.note}</td><td>${exp.date}</td><td>${catName}</td><td style="font-weight:bold; color:#c93a3a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">-${money(exp.amount)}</td></tr>`;
-    });
+      </tbody></table>`;
+    }
+
+    // Genel Kasa Özeti
+    let netTea = (o_teaTotal + i_teaTotal) - ex_teaTotal;
+    let netFund = (o_fundTotal + i_fundTotal) - ex_fundTotal;
+    let netTotal = netTea + netFund;
+
     html += `
-        <tr>
-          <td colspan="3" style="text-align:right; font-weight:bold;">GİDER TOPLAMI:</td>
-          <td style="font-weight:bold; background-color:#fff0f0 !important; color:#c93a3a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">${money(ex_teaTotal + ex_fundTotal)}</td>
-        </tr>
-    </tbody></table>`;
-  }
-
-  // Genel Kasa Özeti
-  let netTea = (o_teaTotal + i_teaTotal) - ex_teaTotal;
-  let netFund = (o_fundTotal + i_fundTotal) - ex_fundTotal;
-  let netTotal = netTea + netFund;
-
-  html += `
-    <div style="page-break-inside: avoid;">
-      <div class="pdf-title">4. ${monthStr} ${y} AY SONU KASA ÖZETİ</div>
-      <div class="pdf-summary-box">
-        <div class="pdf-box"><h3>☕ NET ÇAY KASASI</h3><b>${money(netTea)}</b></div>
-        <div class="pdf-box"><h3>💰 NET FON KASASI</h3><b>${money(netFund)}</b></div>
-        <div class="pdf-box pdf-box-blue"><h3>💵 AYLIK NET DURUM</h3><b>${money(netTotal)}</b></div>
+      <div style="page-break-inside: avoid;">
+        <div class="pdf-title">4. ${monthStr} ${y} AY SONU KASA ÖZETİ</div>
+        <div class="pdf-summary-box">
+          <div class="pdf-box"><h3>☕ NET ÇAY KASASI</h3><b>${money(netTea)}</b></div>
+          <div class="pdf-box"><h3>💰 NET FON KASASI</h3><b>${money(netFund)}</b></div>
+          <div class="pdf-box pdf-box-blue"><h3>💵 AYLIK NET DURUM</h3><b>${money(netTotal)}</b></div>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  }
   
   let printArea = document.getElementById('nativePrintArea');
   printArea.innerHTML = html;
   
   let originalTitle = document.title;
-  document.title = `cay-fon-raporu-${k}`; 
+  document.title = onlyTeachers ? `ogretmen-aidat-listesi-${k}` : `cay-fon-raporu-${k}`; 
   
   setTimeout(() => {
     window.print();
@@ -770,8 +773,11 @@ function settingsHTML(){
       
       <div class="setting">
         <b>📄 PDF Aylık Rapor</b>
-        <div class="status" style="margin:6px 0 10px">Seçili aya ait resmi tablo raporunu oluşturur (Yazdır -> PDF Olarak Kaydet).</div>
-        <button id="pdfDownloadBtn" class="btn primary" onclick="downloadPDFReport()">📄 Seçili Ayın PDF Raporunu İndir</button>
+        <div class="status" style="margin:6px 0 10px">Seçili aya ait tam raporu veya sadece öğretmen aidat listesini yazdırın (Yazdır -> PDF Olarak Kaydet).</div>
+        <div class="actions" style="margin-top:0">
+          <button id="pdfDownloadBtn" class="btn primary" onclick="downloadPDFReport(false)">📄 Tam Rapor (PDF)</button>
+          <button class="btn secondary" onclick="downloadPDFReport(true)">👥 Sadece Öğretmen Listesi</button>
+        </div>
       </div>
 
       <button class="btn secondary" onclick="exportCSV()">📊 Excel uyumlu CSV rapor indir</button>
