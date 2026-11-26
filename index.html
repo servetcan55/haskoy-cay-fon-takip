@@ -212,6 +212,14 @@ function monthKey(){
   return s.value; 
 }
 
+// 📌 TARİHLİ MUAFİYET KONTROLÜ (Önceki aylardaki ödemeleri korur)
+function isExempt(t, type, k = monthKey()) {
+  if (!t || !t[type + 'Exempt']) return false;
+  let from = t[type + 'ExemptFrom'];
+  if (from) return k >= from;
+  return true;
+}
+
 function getMonthConfig(k){
   db.months[k] ??= {};
   if(!db.months[k].settings){
@@ -291,7 +299,7 @@ function selectCustomMonth(){
 
 function payment(id, type){
   let t = db.teachers.find(x => x.id === id);
-  if(!t || t[type+'Exempt']) return;
+  if(!t || isExempt(t, type, monthKey())) return;
   let md = monthData();
   md[id] ??= {};
   md[id][type] = !md[id][type];
@@ -305,8 +313,8 @@ function collectionFor(k){
   let md = db.months[k]?.data || {}, tea = 0, fund = 0;
   db.teachers.forEach(t => {
     let p = md[t.id] || {};
-    if(!t.teaExempt && p.tea) tea += Number(cfg.tea);
-    if(!t.fundExempt && p.fund) fund += Number(cfg.fund);
+    if(!isExempt(t, 'tea', k) && p.tea) tea += Number(cfg.tea);
+    if(!isExempt(t, 'fund', k) && p.fund) fund += Number(cfg.fund);
   });
   return {tea, fund, total: tea + fund};
 }
@@ -504,12 +512,14 @@ function teacherHistory(id){
     let cfg = getMonthConfig(k);
     let md = db.months[k]?.data || {};
     let p = md[id]||{};
-    let tea = t.teaExempt?0:p.tea?Number(cfg.tea):0;
-    let fund = t.fundExempt?0:p.fund?Number(cfg.fund):0;
+    let teaEx = isExempt(t, 'tea', k);
+    let fundEx = isExempt(t, 'fund', k);
+    let tea = teaEx ? 0 : (p.tea ? Number(cfg.tea) : 0);
+    let fund = fundEx ? 0 : (p.fund ? Number(cfg.fund) : 0);
     if(tea||fund) paidMonths++;
     teaTotal += tea; fundTotal += fund;
     let [y,m] = k.split('-');
-    return {label: m+'/'+y, p, tea, fund};
+    return {label: m+'/'+y, p, tea, fund, teaEx, fundEx};
   }).filter(r => r.tea || r.fund || r.p.teaDate || r.p.fundDate);
 
   document.getElementById('modal').innerHTML = `
@@ -530,7 +540,7 @@ function teacherHistory(id){
             <div class="name">${r.label}<div class="status">${r.p.teaDate?'Çay: '+r.p.teaDate:''}${r.p.teaDate&&r.p.fundDate?' • ':''}${r.p.fundDate?'Fon: '+r.p.fundDate:''}</div></div>
             <div style="text-align:right;font-weight:800">${r.tea?r.tea.toLocaleString('tr-TR')+' ₺':''}${r.tea&&r.fund?' + ':''}${r.fund?r.fund.toLocaleString('tr-TR')+' ₺':''}</div>
           </div>
-          <div class="status" style="margin-top:6px">${t.teaExempt?'☕ Muaf':r.p.tea?'☕ Ödendi':'☕ Ödenmedi'} • ${t.fundExempt?'💰 Muaf':r.p.fund?'💰 Ödendi':'💰 Ödenmedi'}</div>
+          <div class="status" style="margin-top:6px">${r.teaEx?'☕ Muaf':r.p.tea?'☕ Ödendi':'☕ Ödenmedi'} • ${r.fundEx?'💰 Muaf':r.p.fund?'💰 Ödendi':'💰 Ödenmedi'}</div>
         </div>
       `).join('') : '<div class="empty">Henüz ödeme geçmişi yok.</div>'}
       <div class="actions"><button class="btn primary" onclick="closeModal()">Kapat</button></div>
@@ -550,7 +560,6 @@ function downloadPDFReport(onlyTeachers = false) {
   let md = monthData();
   let money = n => Number(n||0).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2})+' ₺';
 
-  // O ayki öğretmen tahsilat toplamları hesaplanıyor
   let o_teaTotal = 0;
   let o_fundTotal = 0;
   let sortedTeachers = db.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,'tr',{sensitivity:'base'}));
@@ -577,7 +586,7 @@ function downloadPDFReport(onlyTeachers = false) {
 
   sortedTeachers.forEach(t => {
     let p = md[t.id] || {};
-    let teaEx = t.teaExempt, fundEx = t.fundExempt;
+    let teaEx = isExempt(t, 'tea', k), fundEx = isExempt(t, 'fund', k);
     let teaPaid = p.tea, fundPaid = p.fund;
     let teaClass = teaEx ? 'td-exempt' : (teaPaid ? 'td-paid' : 'td-unpaid');
     let fundClass = fundEx ? 'td-exempt' : (fundPaid ? 'td-paid' : 'td-unpaid');
@@ -617,9 +626,7 @@ function downloadPDFReport(onlyTeachers = false) {
       </tr>
   </tbody></table>`;
   
-  // Sadece öğretmen listesi seçilmediyse Ek Gelir, Gider ve Kasa Özetini de ekle
   if (!onlyTeachers) {
-    // Ek Gelirler Bölümü
     let incomeList = (db.incomes || []).filter(i => i.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
     let i_teaTotal = 0, i_fundTotal = 0;
     if(incomeList.length > 0) {
@@ -650,7 +657,6 @@ function downloadPDFReport(onlyTeachers = false) {
       </tbody></table>`;
     }
 
-    // Giderler Bölümü
     let expenseList = (db.expenses || []).filter(e => e.month === k).sort((a,b)=>new Date(a.date.split('.').reverse().join('-')) - new Date(b.date.split('.').reverse().join('-')));
     let ex_teaTotal = 0, ex_fundTotal = 0;
     if(expenseList.length > 0) {
@@ -681,7 +687,6 @@ function downloadPDFReport(onlyTeachers = false) {
       </tbody></table>`;
     }
 
-    // Genel Kasa Özeti
     let netTea = (o_teaTotal + i_teaTotal) - ex_teaTotal;
     let netFund = (o_fundTotal + i_fundTotal) - ex_fundTotal;
     let netTotal = netTea + netFund;
@@ -731,10 +736,13 @@ function filterTeachers(){
   }
 
   container.innerHTML = list.map(t=>{
-    let p = md[t.id] || {}, teaLabel = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundLabel = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
-    let badges = [t.teaExempt?'☕ Çay muaf':'', t.fundExempt?'💰 Fon muaf':''].filter(Boolean).join(' • ');
-    let history = Object.keys(db.months).sort().reverse().filter(kId=>{let hp=db.months[kId]?.data?.[t.id]||{};return hp.tea||hp.fund}).slice(0,1).map(kId=>{let hp=db.months[kId].data[t.id]||{};return kId.split('-')[1]+'/'+kId.split('-')[0]+': '+(hp.tea?'☕ Ödendi':'☕ Ödenmedi')+' • '+(hp.fund?'💰 Ödendi':'💰 Ödenmedi')}).join('');
-    let status = t.teaExempt && t.fundExempt ? 'Tam muaf' : (!t.teaExempt && p.tea) && (!t.fundExempt && p.fund) ? 'Tamamlandı' : (!t.teaExempt && p.tea) || (!t.fundExempt && p.fund) ? 'Eksik ödeme' : 'Ödeme bekliyor';
+    let p = md[t.id] || {};
+    let teaEx = isExempt(t, 'tea', k), fundEx = isExempt(t, 'fund', k);
+    let teaLabel = teaEx ? 'Muaf' : (p.tea ? 'Ödendi' : 'Ödenmedi');
+    let fundLabel = fundEx ? 'Muaf' : (p.fund ? 'Ödendi' : 'Ödenmedi');
+    let badges = [teaEx ? '☕ Çay muaf' : '', fundEx ? '💰 Fon muaf' : ''].filter(Boolean).join(' • ');
+    let history = Object.keys(db.months).sort().reverse().filter(kId=>{let hp=db.months[kId]?.data?.[t.id]||{};return hp.tea||hp.fund}).slice(0,1).map(kId=>{let hp=db.months[kId].data[t.id]||{};return kId.split('-')[1]+'/'+kId.split('-')[0]+': '+(isExempt(t,'tea',kId)?'☕ Muaf':hp.tea?'☕ Ödendi':'☕ Ödenmedi')+' • '+(isExempt(t,'fund',kId)?'💰 Muaf':hp.fund?'💰 Ödendi':'💰 Ödenmedi')}).join('');
+    let status = teaEx && fundEx ? 'Tam muaf' : (!teaEx && p.tea) && (!fundEx && p.fund) ? 'Tamamlandı' : (!teaEx && p.tea) || (!fundEx && p.fund) ? 'Eksik ödeme' : 'Ödeme bekliyor';
     return `
       <div class="teacher" onclick="teacherHistory('${t.id}')">
         <div class="teacher-head">
@@ -744,8 +752,8 @@ function filterTeachers(){
           <button class="btn secondary" onclick="event.stopPropagation();removeTeacher('${t.id}')">Sil</button>
         </div>
         <div class="payrow" onclick="event.stopPropagation()">
-          <div class="pay"><b>☕ ${t.teaExempt?'Muaf':cfg.tea+' ₺'}</b><button class="${t.teaExempt?'exempt':p.tea?'paid':'unpaid'}" onclick="payment('${t.id}','tea')">${teaLabel}</button></div>
-          <div class="pay"><b>💰 ${t.fundExempt?'Muaf':cfg.fund+' ₺'}</b><button class="${t.fundExempt?'exempt':p.fund?'paid':'unpaid'}" onclick="payment('${t.id}','fund')">${fundLabel}</button></div>
+          <div class="pay"><b>☕ ${teaEx?'Muaf':cfg.tea+' ₺'}</b><button class="${teaEx?'exempt':p.tea?'paid':'unpaid'}" onclick="payment('${t.id}','tea')">${teaLabel}</button></div>
+          <div class="pay"><b>💰 ${fundEx?'Muaf':cfg.fund+' ₺'}</b><button class="${fundEx?'exempt':p.fund?'paid':'unpaid'}" onclick="payment('${t.id}','fund')">${fundLabel}</button></div>
         </div>
         ${history ? `<div class="status" style="margin-top:6px">📜 ${history}</div>` : ''}
       </div>
@@ -819,6 +827,7 @@ function showView(v){
 
 function addTeacher(){
   editingId = null;
+  let [y,m] = monthKey().split('-');
   document.getElementById('modal').innerHTML = `
     <div class="sheet">
       <h2>Öğretmen Ekle</h2>
@@ -826,6 +835,7 @@ function addTeacher(){
       <div class="checks" style="margin:10px 0">
         <label><input type="checkbox" id="teaExempt"> ☕ Çay parasından muaf</label><br>
         <label><input type="checkbox" id="fundExempt"> 💰 Fon parasından muaf</label>
+        <div class="status" style="margin-top:6px">Muafiyet seçili aydan (${m}/${y}) itibaren geçerli olur, önceki ödemeleri silmez.</div>
       </div>
       <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveTeacher()">Kaydet</button></div>
     </div>
@@ -838,13 +848,17 @@ function editTeacher(id){
   let t = db.teachers.find(x => x.id === id);
   if(!t) return;
   editingId = id;
+  let [y,m] = monthKey().split('-');
+  let teaInfo = (t.teaExempt && t.teaExemptFrom) ? ` (${t.teaExemptFrom.split('-').reverse().join('/')} itibarıyla)` : '';
+  let fundInfo = (t.fundExempt && t.fundExemptFrom) ? ` (${t.fundExemptFrom.split('-').reverse().join('/')} itibarıyla)` : '';
   document.getElementById('modal').innerHTML = `
     <div class="sheet">
       <h2>Öğretmeni Düzenle</h2>
       <div class="field"><label>Ad Soyad</label><input id="teacherName" value="${t.name}"></div>
       <div class="checks" style="margin:10px 0">
-        <label><input type="checkbox" id="teaExempt" ${t.teaExempt?'checked':''}> ☕ Çay parasından muaf</label><br>
-        <label><input type="checkbox" id="fundExempt" ${t.fundExempt?'checked':''}> 💰 Fon parasından muaf</label>
+        <label><input type="checkbox" id="teaExempt" ${t.teaExempt?'checked':''}> ☕ Çay parasından muaf${teaInfo}</label><br>
+        <label><input type="checkbox" id="fundExempt" ${t.fundExempt?'checked':''}> 💰 Fon parasından muaf${fundInfo}</label>
+        <div class="status" style="margin-top:6px">Yeni muafiyet seçili aydan (${m}/${y}) itibaren geçerli olur, önceki aylardaki ödemeleri etkilemez.</div>
       </div>
       <div class="actions"><button class="btn secondary" onclick="closeModal()">Vazgeç</button><button class="btn primary" onclick="saveTeacher()">Kaydet</button></div>
     </div>
@@ -863,12 +877,29 @@ function closeModal(){
 function saveTeacher(){
   let n = document.getElementById('teacherName').value.trim();
   if(!n) return;
+  let k = monthKey();
   let teaEx = document.getElementById('teaExempt').checked, fundEx = document.getElementById('fundExempt').checked;
   if(editingId){
     let t = db.teachers.find(x => x.id === editingId);
-    if(t){ t.name = n; t.teaExempt = teaEx; t.fundExempt = fundEx; }
+    if(t){
+      t.name = n;
+      if (teaEx && !t.teaExempt) t.teaExemptFrom = k;
+      if (!teaEx) t.teaExemptFrom = null;
+      t.teaExempt = teaEx;
+
+      if (fundEx && !t.fundExempt) t.fundExemptFrom = k;
+      if (!fundEx) t.fundExemptFrom = null;
+      t.fundExempt = fundEx;
+    }
   } else {
-    db.teachers.push({id: crypto.randomUUID(), name: n, teaExempt: teaEx, fundExempt: fundEx});
+    db.teachers.push({
+      id: crypto.randomUUID(),
+      name: n,
+      teaExempt: teaEx,
+      teaExemptFrom: teaEx ? k : null,
+      fundExempt: fundEx,
+      fundExemptFrom: fundEx ? k : null
+    });
   }
   save(); closeModal(); render();
 }
@@ -976,9 +1007,11 @@ function exportCSV(){
   let md = monthData(), k = monthKey(), cfg = getMonthConfig(k);
   let rows = [['Öğretmen','Çay Durumu','Çay Tutarı','Çay Tarihi','Fon Durumu','Fon Tutarı','Fon Tarihi','Toplam']];
   db.teachers.forEach(t=>{
-    let p = md[t.id]||{}, teaStatus = t.teaExempt?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundStatus = t.fundExempt?'Muaf':p.fund?'Ödendi':'Ödenmedi';
-    let teaAmount = t.teaExempt?0:p.tea?Number(cfg.tea):0, fundAmount = t.fundExempt?0:p.fund?Number(cfg.fund):0;
-    rows.push([t.name, teaStatus, teaAmount, t.teaExempt?'':p.teaDate||'', fundStatus, fundAmount, t.fundExempt?'':p.fundDate||'', teaAmount+fundAmount]);
+    let p = md[t.id]||{};
+    let teaEx = isExempt(t, 'tea', k), fundEx = isExempt(t, 'fund', k);
+    let teaStatus = teaEx?'Muaf':p.tea?'Ödendi':'Ödenmedi', fundStatus = fundEx?'Muaf':p.fund?'Ödendi':'Ödenmedi';
+    let teaAmount = teaEx?0:p.tea?Number(cfg.tea):0, fundAmount = fundEx?0:p.fund?Number(cfg.fund):0;
+    rows.push([t.name, teaStatus, teaAmount, teaEx?'':p.teaDate||'', fundStatus, fundAmount, fundEx?'':p.fundDate||'', teaAmount+fundAmount]);
   });
   let csv = '\ufeff' + rows.map(r => r.map(v => '"' + String(v).replaceAll('"','""') + '"').join(';')).join('\r\n');
   let blob = new Blob([csv], {type:'text/csv;charset=utf-8'}), a = document.createElement('a');
